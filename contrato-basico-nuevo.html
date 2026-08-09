@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finalizar Inscripción - Lingola English Teaching</title>
+
+    <!-- Google Fonts Premium -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome para Íconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* --- VARIABLES DE COLOR CORPORATIVAS (LINGOLA) --- */
+        :root {
+            --primary-color: #132A4A; /* Azul Marino */
+            --accent-color: #EAB308; /* Dorado */
+            --white-color: #FFFFFF; /* Blanco */
+            --bg-color: #F8FAFC; /* Gris ultra claro para fondo */
+            --text-dark: #1E293B; /* Texto principal */
+            --text-muted: #64748B; /* Texto secundario */
+            --border-color: #E2E8F0; /* Bordes refinados */
+            --accent-strong: #A16207; /* Dorado oscuro (texto sobre fondo claro) */
+            --warning-color: #D97706; /* Ámbar para advertencias */
+            --success-color: #10B981; /* Verde para éxito */
+            --shadow-soft: 0 10px 25px -5px rgba(19, 42, 74, 0.05), 0 8px 10px -6px rgba(19, 42, 74, 0.05);
+        }
+
+        /* --- ESTILOS GENERALES --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- ENCABEZADO / NAVBAR --- */
+        header {
+            background: var(--white-color);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.01);
+        }
+
+        .header-container {
+            max-width: 1100px;
+            margin: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        /* --- BARRA DE PROGRESO (PASO 4 DE 4 - 100%) --- */
+        .progress-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 100%;
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        main {
+            max-width: 850px;
+            width: 100%;
+            margin: auto;
+            padding: 3rem 2rem;
+        }
+
+        /* Vistas alternativas por IDs */
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        /* Títulos de la sección */
+        .title-section {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .title-section h1 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .title-section p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 650px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* --- TARJETA DEL ACUERDO DE INSCRIPCIÓN --- */
+        .form-card {
+            background: var(--white-color);
+            padding: 3rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 2.5rem;
+        }
+
+        /* ═══════════════════════════════════════════════
+           DOCUMENTO DEL CONTRATO
+           ═══════════════════════════════════════════════ */
+
+        /* Contenedor / hoja del documento */
+        .contract-container {
+            background-color: var(--white-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            max-height: 540px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: #CBD5E1 transparent;
+        }
+
+        /* Personalización de Scrollbar */
+        .contract-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .contract-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .contract-container::-webkit-scrollbar-thumb {
+            background-color: #CBD5E1;
+            border: 2px solid var(--white-color);
+            border-radius: 99px;
+        }
+        .contract-container::-webkit-scrollbar-thumb:hover {
+            background-color: #94A3B8;
+        }
+
+        /* Encabezado del documento (fijo mientras se hace scroll) */
+        .contract-header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.35rem 2.25rem;
+            background: var(--white-color);
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .contract-header-icon {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--primary-color);
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .contract-doc-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            line-height: 1.3;
+            letter-spacing: -0.01em;
+        }
+
+        .contract-doc-subtitle {
+            margin-top: 0.15rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* Cuerpo del documento */
+        .contract-body {
+            padding: 2rem 2.25rem 2.25rem;
+        }
+
+        .contract-text p {
+            font-size: 0.94rem;
+            color: #334155;
+            text-align: left;
+            line-height: 1.8;
+            letter-spacing: normal;
+            word-spacing: normal;
+        }
+
+        .contract-text p + p {
+            margin-top: 1rem;
+        }
+
+        .contract-text strong {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Párrafo introductorio */
+        .contract-intro {
+            padding: 1.1rem 1.35rem;
+            background: rgba(19, 42, 74, 0.03);
+            border-left: 3px solid var(--accent-color);
+            border-radius: 0 10px 10px 0;
+            margin-bottom: 2rem;
+        }
+
+        /* --- CLÁUSULAS --- */
+        .contract-clause {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .contract-clause:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        /* Títulos de cláusula */
+        .contract-section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            margin-bottom: 1.15rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            line-height: 1.35;
+            letter-spacing: -0.01em;
+        }
+
+        .clause-icon {
+            flex-shrink: 0;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: rgba(234, 179, 8, 0.14);
+            color: var(--accent-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+        }
+
+        .contract-clause.is-alert .clause-icon {
+            background: rgba(217, 119, 6, 0.12);
+            color: var(--warning-color);
+        }
+
+        .clause-index {
+            color: var(--accent-strong);
+            margin-right: 0.15rem;
+        }
+
+        /* --- LISTAS DE PUNTOS DE CADA CLÁUSULA --- */
+        .contract-list {
+            list-style: none;
+            display: grid;
+            gap: 0.9rem;
+            margin: 0;
+            padding: 0;
+        }
+
+        .contract-list li {
+            display: grid;
+            grid-template-columns: 1.25rem 1fr;
+            column-gap: 0.8rem;
+            align-items: start;
+            font-size: 0.94rem;
+            color: #334155;
+            text-align: left;
+            line-height: 1.8;
+            letter-spacing: normal;
+            word-spacing: normal;
+        }
+
+        .contract-list li > i {
+            justify-self: center;
+            margin-top: 0.45rem;
+            font-size: 0.82rem;
+            color: var(--accent-color);
+        }
+
+        .contract-list.is-alert li > i {
+            color: var(--warning-color);
+        }
+
+        /* --- BLOQUE "INFORMACIÓN IMPORTANTE" --- */
+        .important-info-box {
+            margin-top: 1.5rem;
+            padding: 1.2rem 1.4rem;
+            background: linear-gradient(180deg, rgba(234, 179, 8, 0.10), rgba(234, 179, 8, 0.03));
+            border: 1px solid rgba(234, 179, 8, 0.45);
+            border-left: 4px solid var(--accent-color);
+            border-radius: 12px;
+        }
+
+        .important-info-header {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 0.6rem;
+            color: var(--primary-color);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+        }
+
+        .important-info-header i {
+            color: var(--accent-strong);
+            font-size: 0.95rem;
+        }
+
+        .important-info-box p {
+            font-size: 0.94rem;
+            color: var(--text-dark);
+            line-height: 1.8;
+        }
+
+        /* --- DECLARACIÓN FINAL --- */
+        .contract-final {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.9rem;
+            margin-top: 2rem;
+            padding: 1.3rem 1.5rem;
+            background: rgba(19, 42, 74, 0.035);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+        }
+
+        .contract-final i {
+            flex-shrink: 0;
+            margin-top: 0.28rem;
+            color: var(--primary-color);
+            font-size: 1rem;
+        }
+
+        .contract-final p {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        /* --- CASILLA DE ACEPTACIÓN --- */
+        .checkbox-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            cursor: pointer;
+            padding: 1.25rem 1.4rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--white-color);
+            transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+            user-select: none;
+        }
+
+        .checkbox-container:hover {
+            border-color: rgba(19, 42, 74, 0.35);
+            background: rgba(19, 42, 74, 0.02);
+        }
+
+        .checkbox-container:has(input:checked) {
+            border-color: var(--primary-color);
+            background: rgba(19, 42, 74, 0.035);
+            box-shadow: 0 4px 14px rgba(19, 42, 74, 0.08);
+        }
+
+        .checkbox-wrapper {
+            position: relative;
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+
+        .checkbox-wrapper input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .custom-checkmark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 22px;
+            width: 22px;
+            background-color: var(--white-color);
+            border: 2px solid #CBD5E1;
+            border-radius: 7px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .custom-checkmark i {
+            color: var(--white-color);
+            font-size: 0.8rem;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-wrapper input:checked ~ .custom-checkmark {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .checkbox-wrapper input:checked ~ .custom-checkmark i {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .checkbox-wrapper input:focus-visible ~ .custom-checkmark {
+            box-shadow: 0 0 0 3px rgba(19, 42, 74, 0.18);
+        }
+
+        .checkbox-label {
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        /* --- BOTONES DE ACCIÓN --- */
+        .actions-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .btn-nav {
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+        }
+
+        .btn-prev {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-prev:hover {
+            background-color: rgba(19, 42, 74, 0.04);
+            transform: translateX(-3px);
+        }
+
+        .btn-submit {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+            box-shadow: 0 4px 12px rgba(19, 42, 74, 0.15);
+            min-width: 240px;
+            position: relative;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            background-color: #1a3a66;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(19, 42, 74, 0.25);
+        }
+
+        .btn-submit:disabled {
+            background-color: var(--text-muted);
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- MENSAJES DE ESTADO DEL ENVÍO --- */
+        .submission-feedback {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            font-size: 0.92rem;
+            font-weight: 500;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .submission-feedback.visible {
+            display: block;
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .submission-feedback.is-error {
+            color: #991B1B;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .submission-feedback.is-warning {
+            color: #92400E;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.35);
+        }
+
+        .submission-feedback.is-info {
+            color: var(--primary-color);
+            background: rgba(19, 42, 74, 0.04);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Nota bajo los botones de acción */
+        .submit-note {
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-align: center;
+        }
+
+        .submit-note i {
+            color: #25D366;
+            font-size: 1rem;
+        }
+
+        /* --- LOADER ANIMATION --- */
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--white-color);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- PANTALLA DE CONFIRMACIÓN (ÉXITO) --- */
+        .success-card {
+            background: var(--white-color);
+            padding: 4rem 3.5rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            text-align: center;
+            max-width: 650px;
+            margin: auto;
+        }
+
+        .success-icon-wrapper {
+            width: 90px;
+            height: 90px;
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.75rem;
+            margin: 0 auto 2.5rem auto;
+            animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .success-card h2 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+        }
+
+        .success-card p {
+            color: var(--text-dark);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+        }
+
+        .btn-home {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+            padding: 1rem 3rem;
+            width: auto;
+            margin: 0 auto;
+        }
+
+        .btn-home:hover {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            box-shadow: 0 4px 12px rgba(19, 42, 74, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* --- RESUMEN DE PAGO (ESTILO FACTURA) --- */
+        .payment-summary {
+            background: var(--white-color);
+            padding: 2.5rem 3rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 2.5rem;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .payment-summary-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1.25rem;
+            margin-bottom: 0;
+        }
+
+        /* Líneas de factura */
+        .invoice-lines {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .invoice-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.1rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .invoice-line:last-child {
+            border-bottom: none;
+        }
+
+        .invoice-line-label {
+            font-size: 0.92rem;
+            font-weight: 500;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .invoice-line-label i {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            width: 18px;
+            text-align: center;
+        }
+
+        .invoice-line-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            text-align: right;
+        }
+
+        /* Fila total destacada */
+        .invoice-total {
+            border-top: 2px solid var(--primary-color);
+            margin-top: 0.25rem;
+            padding-top: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .invoice-total-label {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .invoice-total-label i {
+            font-size: 0.95rem;
+        }
+
+        .invoice-total-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        /* --- BOTÓN DE PAGO GRANDE --- */
+        .payment-cta-wrapper {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .btn-payment {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.85rem;
+            width: 100%;
+            max-width: 480px;
+            padding: 1.15rem 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            font-family: 'Poppins', sans-serif;
+            color: var(--white-color);
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1a3a66 100%);
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 6px 20px rgba(19, 42, 74, 0.25);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-payment::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-payment:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(19, 42, 74, 0.35);
+        }
+
+        .btn-payment:hover::after {
+            left: 100%;
+        }
+
+        .btn-payment:disabled {
+            background: var(--text-muted);
+            opacity: 0.45;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-payment:disabled::after {
+            display: none;
+        }
+
+        .btn-payment-amount {
+            font-size: 0.85rem;
+            font-weight: 500;
+            opacity: 0.85;
+        }
+
+        .payment-cta-note {
+            margin-top: 0.75rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+        }
+
+        .payment-cta-note i {
+            color: var(--success-color);
+        }
+
+
+
+        /* --- ANIMACIONES DE TRANSICIÓN --- */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes scaleUp {
+            from { transform: scale(0.6); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* --- RESPONSIVE DESIGN --- */
+        @media (max-width: 768px) {
+            main {
+                padding: 2rem 1rem;
+            }
+            .title-section h1, .success-card h2 {
+                font-size: 1.8rem;
+            }
+            .form-card, .success-card {
+                padding: 2.5rem 1.5rem;
+            }
+            .contract-container {
+                max-height: 65vh;
+                min-height: 320px;
+            }
+            .contract-header {
+                padding: 1.15rem 1.35rem;
+                gap: 0.85rem;
+            }
+            .contract-body {
+                padding: 1.5rem 1.35rem 1.75rem;
+            }
+            .contract-intro {
+                padding: 1rem 1.15rem;
+                margin-bottom: 1.75rem;
+            }
+            .contract-clause {
+                margin-top: 1.75rem;
+                padding-top: 1.75rem;
+            }
+            .contract-final {
+                padding: 1.15rem 1.25rem;
+            }
+            .payment-summary {
+                padding: 1.75rem 1.25rem;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .form-card {
+                padding: 2rem 1.1rem;
+            }
+            .contract-header {
+                padding: 1rem 1.1rem;
+                gap: 0.75rem;
+            }
+            .contract-header-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+                font-size: 0.95rem;
+            }
+            .contract-doc-title {
+                font-size: 1rem;
+            }
+            .contract-doc-subtitle {
+                font-size: 0.65rem;
+                letter-spacing: 0.06em;
+            }
+            .contract-body {
+                padding: 1.35rem 1.1rem 1.5rem;
+            }
+            .contract-section-title {
+                gap: 0.7rem;
+                font-size: 0.98rem;
+                align-items: flex-start;
+            }
+            .clause-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 9px;
+                font-size: 0.85rem;
+            }
+            .contract-list li {
+                grid-template-columns: 1.1rem 1fr;
+                column-gap: 0.65rem;
+            }
+            .contract-text p,
+            .contract-list li,
+            .important-info-box p {
+                font-size: 0.9rem;
+                line-height: 1.75;
+            }
+            .important-info-box {
+                padding: 1.05rem 1.15rem;
+            }
+            .contract-final {
+                padding: 1.05rem 1.15rem;
+            }
+            .checkbox-container {
+                padding: 1.1rem 1.15rem;
+                gap: 0.85rem;
+            }
+            .checkbox-label {
+                font-size: 0.88rem;
+            }
+            header {
+                padding: 1rem;
+            }
+            .header-container {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .progress-wrapper {
+                max-width: 100%;
+                align-items: center;
+            }
+            .actions-section {
+                flex-direction: column-reverse;
+                gap: 1rem;
+            }
+            .btn-nav, .btn-submit {
+                width: 100%;
+            }
+            .btn-payment {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo">
+                <i class="fa-solid fa-graduation-cap"></i> Lingola<span>.</span>
+            </a>
+            
+            <div class="progress-wrapper" id="progress-container">
+                <span class="progress-text" id="progress-label">Paso 4 de 4</span>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        
+        <section id="view-agreement" class="view-section active">
+            <div class="title-section">
+                <h1>Finaliza tu inscripción</h1>
+                <p>Antes de completar tu registro, por favor revisa y acepta los siguientes términos de inscripción.</p>
+            </div>
+
+            <!-- ═══ 1. CONDICIONES Y TÉRMINOS ═══ -->
+            <div class="form-card">
+                <div class="contract-container">
+                    <div class="contract-header">
+                        <div class="contract-header-icon">
+                            <i class="fa-solid fa-file-signature"></i>
+                        </div>
+                        <div>
+                            <h2 class="contract-doc-title">Acuerdo de Inscripción</h2>
+                            <p class="contract-doc-subtitle">Lingola English Teaching · Programa de Inglés Básico</p>
+                        </div>
+                    </div>
+
+                    <div class="contract-body contract-text">
+                        <!-- ═══ INTRODUCCIÓN ═══ -->
+                        <p class="contract-intro">Al completar esta inscripción, el estudiante confirma que la información proporcionada es correcta, acepta participar en el <strong>Programa de Inglés Básico</strong> de <strong>Lingola English Teaching</strong> y declara conocer y aceptar las siguientes condiciones.</p>
+
+                        <!-- ═══ 1. PAGO DE INSCRIPCIÓN ═══ -->
+                        <section class="contract-clause">
+                            <h3 class="contract-section-title">
+                                <span class="clause-icon"><i class="fa-solid fa-credit-card"></i></span>
+                                <span><span class="clause-index">1.</span> Pago de inscripción</span>
+                            </h3>
+                            <ul class="contract-list">
+                                <li><i class="fa-solid fa-circle-check"></i><span>Para completar su proceso de incorporación al programa, el estudiante debe realizar primero el <strong>pago de inscripción</strong>.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Una vez realizado y aceptado el pago de inscripción, el estudiante podrá <strong>comenzar sus clases correspondientes al primer mes</strong> del programa.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>El primer mes de clases comienza a partir del <strong>primer día de clases establecido</strong> para el grupo y horario seleccionados por el estudiante.</span></li>
+                            </ul>
+                        </section>
+
+                        <!-- ═══ 2. PAGO DE MENSUALIDAD ═══ -->
+                        <section class="contract-clause">
+                            <h3 class="contract-section-title">
+                                <span class="clause-icon"><i class="fa-solid fa-calendar-check"></i></span>
+                                <span><span class="clause-index">2.</span> Pago de mensualidad</span>
+                            </h3>
+                            <ul class="contract-list">
+                                <li><i class="fa-solid fa-circle-check"></i><span>Para asegurar su derecho a tomar clases durante el mes siguiente, el estudiante deberá realizar el pago de la mensualidad correspondiente <strong>entre los días 7 y 15 de cada mes</strong>.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Este proceso de pago de mensualidad se aplicará <strong>después de que el estudiante haya comenzado sus clases durante su primer mes</strong>.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>El pago de la mensualidad deberá realizarse mediante <strong>transferencia bancaria</strong>.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Después de que el estudiante acepte los términos y condiciones de este contrato, será <strong>redirigido a WhatsApp</strong> para recibir las instrucciones correspondientes al proceso de pago mediante transferencia bancaria.</span></li>
+                            </ul>
+
+                            <div class="important-info-box">
+                                <div class="important-info-header">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                    Información Importante
+                                </div>
+                                <p>El período de pago de la mensualidad es <strong>del día 7 al día 15 de cada mes</strong>. Realizar el pago dentro de ese período es lo que garantiza al estudiante su derecho a tomar clases durante el mes siguiente.</p>
+                            </div>
+                        </section>
+
+                        <!-- ═══ 3. INCUMPLIMIENTO DEL PAGO ═══ -->
+                        <section class="contract-clause is-alert">
+                            <h3 class="contract-section-title">
+                                <span class="clause-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                                <span><span class="clause-index">3.</span> Incumplimiento del pago</span>
+                            </h3>
+                            <ul class="contract-list is-alert">
+                                <li><i class="fa-solid fa-circle-exclamation"></i><span>No realizar el pago de la mensualidad dentro del período establecido, es decir, <strong>entre los días 7 y 15 de cada mes</strong>, puede resultar en la <strong>cancelación de la participación del estudiante en el programa</strong>.</span></li>
+                                <li><i class="fa-solid fa-circle-exclamation"></i><span>En caso de no realizar el pago dentro del período establecido, el estudiante <strong>perderá el derecho a tomar clases durante el mes siguiente</strong>.</span></li>
+                            </ul>
+                        </section>
+
+                        <!-- ═══ 4. COMPROMISOS DEL ESTUDIANTE ═══ -->
+                        <section class="contract-clause">
+                            <h3 class="contract-section-title">
+                                <span class="clause-icon"><i class="fa-solid fa-handshake"></i></span>
+                                <span><span class="clause-index">4.</span> Compromisos del estudiante</span>
+                            </h3>
+                            <ul class="contract-list">
+                                <li><i class="fa-solid fa-circle-check"></i><span>Participar de manera respetuosa en las clases.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Mantener una comunicación adecuada con el equipo académico.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Asistir a las sesiones en el horario seleccionado.</span></li>
+                                <li><i class="fa-solid fa-circle-check"></i><span>Utilizar los recursos educativos con fines de aprendizaje.</span></li>
+                            </ul>
+                        </section>
+
+                        <!-- ═══ DECLARACIÓN FINAL ═══ -->
+                        <div class="contract-final">
+                            <i class="fa-solid fa-file-circle-check"></i>
+                            <p>Al marcar la casilla de aceptación, el estudiante declara haber leído y comprendido estas condiciones y acepta cumplirlas durante su participación en el programa.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <label class="checkbox-container" for="accept-checkbox">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="accept-checkbox">
+                        <div class="custom-checkmark">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                    </div>
+                    <span class="checkbox-label">
+                        He leído, comprendido y acepto los términos y condiciones de inscripción, incluyendo el pago de inscripción, el pago de la mensualidad entre los días 7 y 15 de cada mes mediante transferencia bancaria, y las consecuencias del incumplimiento del pago.
+                    </span>
+                </label>
+            </div>
+
+            <!-- ═══ 2. RESUMEN DE PAGO (ESTILO FACTURA) ═══ -->
+            <section class="payment-summary" id="payment-summary" aria-label="Resumen de pago">
+                <div class="payment-summary-header">
+                    <i class="fa-solid fa-receipt"></i>
+                    <span>Resumen de pago</span>
+                </div>
+
+                <ul class="invoice-lines">
+                    <li class="invoice-line">
+                        <span class="invoice-line-label">
+                            <i class="fa-solid fa-credit-card"></i> Inscripción
+                        </span>
+                        <span class="invoice-line-value" id="ps-inscripcion"></span>
+                    </li>
+                    <li class="invoice-line">
+                        <span class="invoice-line-label">
+                            <i class="fa-solid fa-graduation-cap"></i> Mensualidad
+                        </span>
+                        <span class="invoice-line-value" id="ps-mensualidad"></span>
+                    </li>
+                    <li class="invoice-line">
+                        <span class="invoice-line-label">
+                            <i class="fa-solid fa-calendar-days"></i> Inicio de clases
+                        </span>
+                        <span class="invoice-line-value" id="ps-inicio"></span>
+                    </li>
+                    <li class="invoice-line">
+                        <span class="invoice-line-label">
+                            <i class="fa-solid fa-rotate"></i> Próximo pago
+                        </span>
+                        <span class="invoice-line-value" id="ps-proximo-pago"></span>
+                    </li>
+                </ul>
+
+                <div class="invoice-total">
+                    <span class="invoice-total-label">
+                        <i class="fa-solid fa-wallet"></i> Monto a pagar hoy
+                    </span>
+                    <span class="invoice-total-value" id="ps-pago-hoy"></span>
+                </div>
+
+                <!-- IDs ocultos para compatibilidad JS (no visibles) -->
+                <span id="ps-inicio-desc" style="display:none;"></span>
+                <span id="ps-inicio-footer" style="display:none;"></span>
+            </section>
+
+            <!-- Mensajes de estado del envío (errores, cupos, etc.) -->
+            <div id="submission-feedback" class="submission-feedback" role="alert"></div>
+
+            <div class="actions-section">
+                <button type="button" id="btn-back" class="btn-nav btn-prev">
+                    <i class="fa-solid fa-arrow-left"></i> Anterior
+                </button>
+                <button type="button" id="btn-submit" class="btn-nav btn-submit" disabled>
+                    <span class="btn-text">Recibir instrucciones de pago</span>
+                    <div class="spinner"></div>
+                </button>
+            </div>
+
+            <p class="submit-note">
+                <i class="fa-brands fa-whatsapp"></i>
+                Al aceptar los términos y continuar, serás redirigido a WhatsApp para recibir las
+                instrucciones del pago mediante transferencia bancaria.
+            </p>
+
+        </section>
+
+        <section id="view-success" class="view-section">
+            <div class="success-card">
+                <div class="success-icon-wrapper">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <h2>¡Inscripción enviada correctamente!</h2>
+                <p>
+                    Tu inscripción quedó registrada y te enviamos un correo de confirmación con el resumen
+                    de tus datos. Continúa en WhatsApp para recibir las instrucciones del pago de inscripción
+                    mediante transferencia bancaria.
+                </p>
+                <a href="#" id="btn-whatsapp" class="btn-payment" target="_blank" rel="noopener">
+                    <i class="fa-brands fa-whatsapp"></i>
+                    Recibir instrucciones de pago
+                </a>
+                <p class="payment-cta-note" style="margin-bottom: 2rem;">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Si WhatsApp no se abrió automáticamente, usa este botón.
+                </p>
+                <a href="seleccionDenivel.html" class="btn-nav btn-home">
+                    <i class="fa-solid fa-house"></i> Volver al inicio
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Configuración centralizada del curso -->
+    <script src="lingola-config.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configuración local de esta página (no sobreescribe LINGOLA_CONFIG global)
+            const PAGE_CONFIG = {
+                // ⚠️ La URL del Web App se define en lingola-config.js
+                //    (LINGOLA_CONFIG.backend.gasWebAppUrl) para todo el proyecto.
+                GAS_WEB_APP_URL: LINGOLA_CONFIG.backend.gasWebAppUrl,
+                LEVEL_STORAGE_KEY: 'lingola_selected_level_nuevo',
+                REGISTRATION_STORAGE_KEY: 'lingola_registration_data_nuevo',
+                SUBMISSION_ID_KEY: 'lingola_submission_id_nuevo'
+            };
+
+            // ── Poblar resumen de pago desde config centralizada ──
+            document.getElementById('ps-inscripcion').textContent    = LINGOLA_CONFIG.inscripcionFormateada;
+            document.getElementById('ps-mensualidad').textContent    = LINGOLA_CONFIG.mensualidadFormateada;
+            document.getElementById('ps-inicio').textContent         = LINGOLA_CONFIG.inicioClases.fecha;
+            document.getElementById('ps-inicio-desc').textContent    = LINGOLA_CONFIG.inicioClases.descripcion;
+            document.getElementById('ps-pago-hoy').textContent       = LINGOLA_CONFIG.pagoHoyFormateado;
+            document.getElementById('ps-proximo-pago').textContent   = LINGOLA_CONFIG.mensualidadFormateada + ' ' + LINGOLA_CONFIG.proximoPago.descripcion;
+            document.getElementById('ps-inicio-footer').textContent  = LINGOLA_CONFIG.inicioClases.fecha;
+
+            const FORM_PAGES = {
+                'basico-nuevo': 'datos-personales-basico-nuevo.html'
+            };
+
+            const viewAgreement = document.getElementById('view-agreement');
+            const viewSuccess = document.getElementById('view-success');
+            const progressContainer = document.getElementById('progress-container');
+            const acceptCheckbox = document.getElementById('accept-checkbox');
+            const btnBack = document.getElementById('btn-back');
+            const btnSubmit = document.getElementById('btn-submit');
+            const btnText = btnSubmit.querySelector('.btn-text');
+            const spinner = btnSubmit.querySelector('.spinner');
+            const btnWhatsapp = document.getElementById('btn-whatsapp');
+            const feedbackBox = document.getElementById('submission-feedback');
+
+            let registrationData = null;
+            let isSubmitting = false;
+            let isCompleted = false;
+
+            function loadRegistrationData() {
+                const savedLevel = localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
+                const savedRegistration = localStorage.getItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+
+                if (savedLevel !== 'basico-nuevo' || !savedRegistration) {
+                    window.location.href = 'seleccionDenivel.html';
+                    return false;
+                }
+
+                try {
+                    registrationData = JSON.parse(savedRegistration);
+                } catch (e) {
+                    window.location.href = FORM_PAGES[savedLevel] || 'seleccionDenivel.html';
+                    return false;
+                }
+
+                if (!registrationData.nombre || !registrationData.whatsapp || !registrationData.email) {
+                    window.location.href = FORM_PAGES[savedLevel] || 'seleccionDenivel.html';
+                    return false;
+                }
+
+                return true;
+            }
+
+            function updateSubmitButton() {
+                btnSubmit.disabled = isSubmitting || isCompleted || !acceptCheckbox.checked;
+            }
+
+            function setSubmitLoading(loading) {
+                isSubmitting = loading;
+                updateSubmitButton();
+                btnText.style.display = loading ? 'none' : 'inline';
+                spinner.style.display = loading ? 'block' : 'none';
+            }
+
+            function showFeedback(message, type) {
+                feedbackBox.textContent = message;
+                feedbackBox.className = 'submission-feedback visible is-' + (type || 'info');
+            }
+
+            function clearFeedback() {
+                feedbackBox.textContent = '';
+                feedbackBox.className = 'submission-feedback';
+            }
+
+            function showSuccessView() {
+                viewAgreement.classList.remove('active');
+                viewSuccess.classList.add('active');
+                progressContainer.style.display = 'none';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            function clearRegistrationStorage() {
+                localStorage.removeItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
+                localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+                localStorage.removeItem(PAGE_CONFIG.SUBMISSION_ID_KEY);
+            }
+
+            /**
+             * Identificador único de este intento de inscripción.
+             * Se conserva entre reintentos para que el backend reconozca el
+             * envío y nunca registre la inscripción ni envíe los correos dos veces.
+             */
+            function getSubmissionId() {
+                let id = localStorage.getItem(PAGE_CONFIG.SUBMISSION_ID_KEY);
+                if (!id) {
+                    id = 'ins-' + Date.now().toString(36) + '-' +
+                         Math.random().toString(36).slice(2, 10);
+                    localStorage.setItem(PAGE_CONFIG.SUBMISSION_ID_KEY, id);
+                }
+                return id;
+            }
+
+            function buildSubmissionPayload() {
+                return {
+                    nivel: registrationData.nivel,
+                    nombre: registrationData.nombre,
+                    whatsapp: registrationData.whatsapp,
+                    email: registrationData.email,
+                    dias: registrationData.dias,
+                    horario: registrationData.horario,
+                    grupo: registrationData.grupo || '',
+                    inicioClases: registrationData.inicioClases || LINGOLA_CONFIG.inicioClases.fecha,
+                    aceptoTerminos: true,
+                    fechaAceptacion: new Date().toISOString(),
+                    submissionId: getSubmissionId()
+                };
+            }
+
+            function buildWhatsAppURL() {
+                const today = new Date();
+                const fechaInscripcion = today.toLocaleDateString('es-DO', {
+                    year: 'numeric', month: 'long', day: 'numeric'
+                });
+
+                const mensaje = [
+                    'Hola, quiero completar mi inscripción en Lingola English Teaching.',
+                    '',
+                    'Nombre:',
+                    registrationData.nombre,
+                    '',
+                    'Correo:',
+                    registrationData.email,
+                    '',
+                    'WhatsApp:',
+                    registrationData.whatsapp,
+                    '',
+                    'Programa:',
+                    registrationData.nivel || 'Inglés Básico',
+                    '',
+                    'Grupo de días:',
+                    registrationData.dias,
+                    '',
+                    'Horario:',
+                    registrationData.horario,
+                    '',
+                    'Fecha de inscripción:',
+                    fechaInscripcion,
+                    '',
+                    'Estoy listo para recibir las instrucciones de pago correspondientes a mi grupo.'
+                ].join('\n');
+
+                return LINGOLA_CONFIG.whatsappBaseURL + '?text=' + encodeURIComponent(mensaje);
+            }
+
+            /** Comprueba que la URL del backend esté bien configurada. */
+            function isBackendURLValid() {
+                const url = PAGE_CONFIG.GAS_WEB_APP_URL;
+                return Boolean(url) && url.includes('/macros/s/') && url.endsWith('/exec');
+            }
+
+            /**
+             * Envío principal por POST.
+             * No se envían cabeceras personalizadas: así la petición es "simple"
+             * para CORS y la respuesta del Web App puede leerse directamente,
+             * lo que permite confirmar que la inscripción se guardó de verdad.
+             */
+            function enviarPorPost(payload) {
+                return fetch(PAGE_CONFIG.GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    body: JSON.stringify(payload)
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('El servidor respondió con el código ' + response.status + '.');
+                    }
+                    return response.json();
+                });
+            }
+
+            /**
+             * Envío de respaldo por JSONP.
+             * Se usa solo si el navegador impide leer la respuesta del POST.
+             * Gracias al submissionId, si el POST sí llegó a guardarse, el
+             * backend detecta el envío repetido y no duplica nada.
+             */
+            function enviarPorJsonp(payload) {
+                return new Promise(function (resolve, reject) {
+                    const callbackName = 'lingolaInscripcion_' + Date.now();
+                    const script = document.createElement('script');
+                    let finished = false;
+
+                    const cleanup = function () {
+                        finished = true;
+                        delete window[callbackName];
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                    };
+
+                    const timer = setTimeout(function () {
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('Tiempo de espera agotado.'));
+                    }, 25000);
+
+                    window[callbackName] = function (data) {
+                        clearTimeout(timer);
+                        cleanup();
+                        resolve(data);
+                    };
+
+                    script.onerror = function () {
+                        clearTimeout(timer);
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('No se pudo conectar con el servidor.'));
+                    };
+
+                    script.src = PAGE_CONFIG.GAS_WEB_APP_URL +
+                        '?action=inscribir&callback=' + callbackName +
+                        '&data=' + encodeURIComponent(JSON.stringify(payload));
+                    document.body.appendChild(script);
+                });
+            }
+
+            /** Marca la inscripción como completada y lleva al estudiante a WhatsApp. */
+            function completarInscripcion() {
+                const whatsappURL = buildWhatsAppURL();
+
+                isCompleted = true;
+                clearRegistrationStorage();
+                btnWhatsapp.setAttribute('href', whatsappURL);
+                showSuccessView();
+
+                // Redirección a WhatsApp. Si el navegador bloquea la ventana
+                // emergente, el estudiante dispone del botón en pantalla.
+                window.open(whatsappURL, '_blank');
+            }
+
+            /**
+             * Flujo completo del envío:
+             *   1. Guarda la inscripción en Google Sheets (con control de cupos).
+             *   2. El backend envía los correos solo si el registro fue correcto.
+             *   3. Se muestra el éxito y se redirige a WhatsApp.
+             */
+            function enviarInscripcion() {
+                if (!isBackendURLValid()) {
+                    showFeedback(
+                        'La conexión con el sistema de inscripciones no está configurada. ' +
+                        'Por favor, contáctanos por WhatsApp para completar tu inscripción.',
+                        'error'
+                    );
+                    setSubmitLoading(false);
+                    return;
+                }
+
+                const payload = buildSubmissionPayload();
+                showFeedback('Registrando tu inscripción y verificando la disponibilidad de tu grupo…', 'info');
+
+                enviarPorPost(payload)
+                    .catch(function (error) {
+                        // El POST no pudo leerse (CORS, red): se reintenta por JSONP.
+                        console.warn('[Lingola] POST no legible, usando respaldo JSONP:', error.message);
+                        return enviarPorJsonp(payload);
+                    })
+                    .then(function (respuesta) {
+                        if (!respuesta || typeof respuesta !== 'object') {
+                            throw new Error('Respuesta no válida del servidor.');
+                        }
+
+                        if (respuesta.status === 'success') {
+                            completarInscripcion();
+                            return;
+                        }
+
+                        if (respuesta.code === 'CUPO_LLENO') {
+                            const error = new Error(respuesta.message || 'El grupo seleccionado ya está lleno.');
+                            error.code = 'CUPO_LLENO';
+                            throw error;
+                        }
+
+                        throw new Error(respuesta.message || 'No se pudo registrar la inscripción.');
+                    })
+                    .catch(function (error) {
+                        console.error('[Lingola] Error al registrar la inscripción:', error);
+
+                        if (error.code === 'CUPO_LLENO') {
+                            showFeedback(
+                                error.message + ' Vuelve al paso anterior para elegir otro horario.',
+                                'warning'
+                            );
+                        } else {
+                            showFeedback(
+                                'No pudimos completar tu inscripción en este momento: ' + error.message +
+                                ' Tus datos no se han perdido; revisa tu conexión e inténtalo de nuevo.',
+                                'error'
+                            );
+                        }
+
+                        // El botón vuelve a habilitarse para permitir el reintento.
+                        setSubmitLoading(false);
+                    });
+            }
+
+            if (!loadRegistrationData()) {
+                return;
+            }
+
+            const savedLevel = localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
+            btnBack.addEventListener('click', () => {
+                window.location.href = FORM_PAGES[savedLevel] || 'seleccionDenivel.html';
+            });
+
+            acceptCheckbox.addEventListener('change', () => {
+                clearFeedback();
+                updateSubmitButton();
+            });
+
+            btnSubmit.addEventListener('click', () => {
+                // Protección contra clics repetidos: mientras se procesa o si ya
+                // se completó, el botón no vuelve a disparar el envío.
+                if (!acceptCheckbox.checked || isSubmitting || isCompleted) {
+                    return;
+                }
+                clearFeedback();
+                setSubmitLoading(true);
+                enviarInscripcion();
+            });
+
+            updateSubmitButton();
+        });
+    </script>
+</body>
+</html>

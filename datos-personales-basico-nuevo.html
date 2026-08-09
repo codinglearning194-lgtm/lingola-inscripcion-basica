@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Información Personal - Lingola English Teaching</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* --- VARIABLES DE COLOR CORPORATIVAS (LINGOLA) --- */
+        :root {
+            --primary-color: #132A4A; /* Azul Marino */
+            --accent-color: #EAB308; /* Dorado */
+            --white-color: #FFFFFF; /* Blanco */
+            --bg-color: #F8FAFC; /* Gris ultra claro para fondo */
+            --text-dark: #1E293B; /* Texto principal */
+            --text-muted: #64748B; /* Texto secundario */
+            --border-color: #E2E8F0; /* Bordes refinados */
+            --error-color: #EF4444; /* Rojo para validaciones inválidas */
+            --success-color: #15803D; /* Verde para cupos disponibles */
+            --shadow-soft: 0 10px 25px -5px rgba(19, 42, 74, 0.05), 0 8px 10px -6px rgba(19, 42, 74, 0.05);
+        }
+
+        /* --- ESTILOS GENERALES --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- ENCABEZADO / NAVBAR --- */
+        header {
+            background: var(--white-color);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.01);
+        }
+
+        .header-container {
+            max-width: 1100px;
+            margin: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        /* --- BARRA DE PROGRESO (PASO 3 DE 4 - 75%) --- */
+        .progress-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 75%;
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        main {
+            max-width: 1100px;
+            width: 100%;
+            margin: auto;
+            padding: 3rem 2rem;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        /* Títulos de la sección */
+        .title-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .level-badge {
+            display: inline-block;
+            background: rgba(234, 179, 8, 0.1);
+            color: #b48604;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0.35rem 1rem;
+            border-radius: 99px;
+            margin-bottom: 0.75rem;
+            letter-spacing: 1px;
+        }
+
+        .title-section h1 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .title-section p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 650px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* --- TARJETA DEL FORMULARIO PREMIUM --- */
+        .form-card {
+            background: var(--white-color);
+            padding: 3.5rem 3rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 2.5rem;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .form-section-title {
+            font-size: 1.25rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 1.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Cuadrícula de campos (Inputs) */
+        .inputs-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .form-group label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 1rem;
+            color: var(--text-muted);
+            font-size: 1rem;
+            transition: color 0.3s ease;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.85rem 1rem 0.85rem 2.7rem;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            background-color: var(--white-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(19, 42, 74, 0.06);
+        }
+
+        .form-control:focus + i {
+            color: var(--primary-color);
+        }
+
+        /* Errores de Validación */
+        .error-message {
+            font-size: 0.8rem;
+            color: var(--error-color);
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .form-group.invalid .form-control {
+            border-color: var(--error-color);
+            background-color: rgba(239, 68, 68, 0.01);
+        }
+
+        .form-group.invalid .error-message {
+            display: block;
+        }
+
+        /* --- SECCIÓN SISTEMA DE HORARIOS CATEGORIZADO --- */
+        .schedule-section {
+            border-top: 1px solid var(--border-color);
+            padding-top: 2.5rem;
+            min-width: 0;
+        }
+
+        .schedule-groups-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        .days-group {
+            background: rgba(19, 42, 74, 0.01);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            min-width: 0;
+        }
+
+        .days-group h3 {
+            color: var(--primary-color);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Contenedores de Subcategorías (Mañana / Tarde) */
+        .period-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .period-container:last-child {
+            margin-bottom: 0;
+        }
+
+        .period-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.65rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .time-slots {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+        }
+
+        /* Tarjetas de Hora Individuales */
+        .time-card {
+            background: var(--white-color);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            min-width: 0;
+        }
+
+        .time-card-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .time-card .time-text {
+            font-size: 0.8rem;
+            color: var(--text-dark);
+            font-weight: 500;
+            line-height: 1.3;
+            min-width: 0;
+        }
+
+        /* --- INDICADOR DE CUPOS DISPONIBLES --- */
+        .slot-status {
+            font-size: 0.7rem;
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .slot-status i {
+            font-size: 0.65rem;
+        }
+
+        .slot-status.is-available {
+            color: var(--success-color);
+        }
+
+        .slot-status.is-limited {
+            color: #B45309;
+        }
+
+        .slot-status.is-full {
+            color: var(--error-color);
+        }
+
+        /* Tarjeta con el cupo agotado: visible pero no seleccionable */
+        .time-card.is-full {
+            background: #F1F5F9;
+            border-color: var(--border-color);
+            border-style: dashed;
+            cursor: not-allowed;
+            opacity: 0.75;
+        }
+
+        .time-card.is-full:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: var(--border-color);
+        }
+
+        .time-card.is-full .time-text {
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+
+        /* Aviso general del estado de los cupos */
+        .capacity-notice {
+            margin-top: 1.25rem;
+            padding: 0.85rem 1.1rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            line-height: 1.5;
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            background: rgba(19, 42, 74, 0.03);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+
+        .capacity-notice.visible {
+            display: flex;
+        }
+
+        .capacity-notice.is-warning {
+            background: rgba(234, 179, 8, 0.08);
+            border-color: rgba(234, 179, 8, 0.35);
+            color: #92400E;
+        }
+
+        .time-card .select-indicator {
+            font-size: 0.85rem;
+            color: var(--accent-color);
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s ease;
+        }
+
+        /* Efectos de Interacción */
+        .time-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(19, 42, 74, 0.15);
+            box-shadow: var(--shadow-soft);
+        }
+
+        /* Resaltado Dorado Exclusivo de Selección Línea Lingola */
+        .time-card.selected {
+            border-color: var(--accent-color);
+            background: rgba(234, 179, 8, 0.02);
+            box-shadow: 0 6px 15px rgba(234, 179, 8, 0.08);
+        }
+
+        .time-card.selected .time-text {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .time-card.selected .select-indicator {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* --- BOTONES DE NAVEGACIÓN Y FLUJO --- */
+        .actions-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .btn-nav {
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+        }
+
+        .btn-prev {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-prev:hover {
+            background-color: rgba(19, 42, 74, 0.04);
+            transform: translateX(-3px);
+        }
+
+        .btn-next {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+            box-shadow: 0 4px 12px rgba(19, 42, 74, 0.15);
+        }
+
+        .btn-next:hover:not(:disabled) {
+            background-color: #1a3a66;
+            transform: translateX(3px);
+            box-shadow: 0 6px 15px rgba(19, 42, 74, 0.25);
+        }
+
+        .btn-next:disabled {
+            background-color: var(--text-muted);
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- ANIMACIÓN DE ENTRADA SUAVE --- */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- RESPONSIVE DESIGN --- */
+        @media (max-width: 768px) {
+            main {
+                padding: 2rem 1rem;
+            }
+            .title-section h1 {
+                font-size: 1.8rem;
+            }
+            .form-card {
+                padding: 2.5rem 1.5rem;
+            }
+            .inputs-grid {
+                grid-template-columns: 1fr;
+                gap: 1.25rem;
+            }
+            .full-width {
+                grid-column: span 1;
+            }
+            .schedule-groups-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .time-slots {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 500px) {
+            header {
+                padding: 1rem;
+            }
+            .header-container {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .progress-wrapper {
+                max-width: 100%;
+                align-items: center;
+            }
+            .actions-section {
+                flex-direction: column-reverse;
+                gap: 1rem;
+            }
+            .btn-nav {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo">
+                <i class="fa-solid fa-graduation-cap"></i> Lingola<span>.</span>
+            </a>
+            
+            <div class="progress-wrapper">
+                <span class="progress-text">Paso 3 de 4</span>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="title-section">
+            <span class="level-badge">Programa Básico</span>
+            <h1>Completa tus datos personales</h1>
+            <p>Necesitamos esta información para contactarte y coordinar tu inicio en el programa.</p>
+        </section>
+
+        <form id="registration-form" novalidate>
+            <div class="form-card">
+                
+                <div class="form-section-title">
+                    <i class="fa-solid fa-address-card"></i> Datos de contacto
+                </div>
+
+                <div class="inputs-grid">
+                    <div class="form-group full-width" id="group-name">
+                        <label for="full-name">Nombre completo</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="full-name" class="form-control" placeholder="Ej. Juan Pérez" required>
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <span class="error-message">Por favor, introduce tu nombre completo.</span>
+                    </div>
+
+                    <div class="form-group" id="group-whatsapp">
+                        <label for="whatsapp">Número de WhatsApp</label>
+                        <div class="input-wrapper">
+                            <input type="tel" id="whatsapp" class="form-control" placeholder="Ej. +1 809-555-5555" required>
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </div>
+                        <span class="error-message">Introduce tu número de WhatsApp.</span>
+                    </div>
+
+                    <div class="form-group" id="group-email">
+                        <label for="email">Correo electrónico</label>
+                        <div class="input-wrapper">
+                            <input type="email" id="email" class="form-control" placeholder="juan@ejemplo.com" required>
+                            <i class="fa-solid fa-envelope"></i>
+                        </div>
+                        <span class="error-message">Introduce un correo electrónico válido.</span>
+                    </div>
+                </div>
+
+                <div class="schedule-section">
+                    <div class="form-section-title">
+                        <i class="fa-solid fa-clock"></i> Selección de días y horario para las clases
+                    </div>
+
+                    <div class="schedule-groups-grid">
+                        
+                        <div class="days-group">
+                            <h3><i class="fa-solid fa-calendar-days"></i> Lunes y Jueves</h3>
+
+                            <div class="period-container">
+                                <div class="period-title">☀️ Mañana</div>
+                                <div class="time-slots">
+                                    <div class="time-card" data-days="lunes-jueves" data-time="mañana-9:00-10:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">9:00 AM – 10:30 AM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                    <div class="time-card" data-days="lunes-jueves" data-time="mañana-11:00-12:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">11:00 AM – 12:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-container">
+                                <div class="period-title">🌙 Tarde</div>
+                                <div class="time-slots">
+                                    <div class="time-card" data-days="lunes-jueves" data-time="tarde-14:00-15:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">2:00 PM – 3:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                    <div class="time-card" data-days="lunes-jueves" data-time="tarde-16:00-17:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">4:00 PM – 5:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="days-group">
+                            <h3><i class="fa-solid fa-calendar-days"></i> Martes y Viernes</h3>
+
+                            <div class="period-container">
+                                <div class="period-title">☀️ Mañana</div>
+                                <div class="time-slots">
+                                    <div class="time-card" data-days="martes-viernes" data-time="mañana-9:00-10:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">9:00 AM – 10:30 AM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                    <div class="time-card" data-days="martes-viernes" data-time="mañana-11:00-12:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">11:00 AM – 12:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="period-container">
+                                <div class="period-title">🌙 Tarde</div>
+                                <div class="time-slots">
+                                    <div class="time-card" data-days="martes-viernes" data-time="tarde-14:00-15:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">2:00 PM – 3:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                    <div class="time-card" data-days="martes-viernes" data-time="tarde-16:00-17:30">
+                                        <div class="time-card-info">
+                                            <span class="time-text">4:00 PM – 5:30 PM</span>
+                                            <span class="slot-status" data-role="slot-status"></span>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check select-indicator"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="capacity-notice" id="capacity-notice" role="status">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span id="capacity-notice-text"></span>
+                    </div>
+
+                    <div class="form-group" id="group-schedule" style="margin-top: 1.5rem; display: none;">
+                        <span class="error-message">Selecciona un día y horario para tus clases.</span>
+                    </div>
+                </div>
+            </div>
+
+            <section class="actions-section">
+                <a href="informacion-basico-nuevo.html" class="btn-nav btn-prev">
+                    <i class="fa-solid fa-arrow-left"></i> Anterior
+                </a>
+                <button type="submit" id="next-btn" class="btn-nav btn-next" disabled>
+                    Siguiente <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </section>
+        </form>
+    </main>
+
+    <!-- Configuración centralizada del curso -->
+    <script src="lingola-config.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Configuración local de esta página.
+            // La URL del backend y el límite de cupos viven en lingola-config.js.
+            const PAGE_CONFIG = {
+                GAS_WEB_APP_URL: LINGOLA_CONFIG.backend.gasWebAppUrl,
+                CONTRACT_PAGE: 'contrato-basico-nuevo.html',
+                LEVEL_STORAGE_KEY: 'lingola_selected_level_nuevo',
+                REGISTRATION_STORAGE_KEY: 'lingola_registration_data_nuevo',
+                CUPOS_LIMITE: LINGOLA_CONFIG.cupos.limitePorGrupo
+            };
+
+            const DAYS_LABELS = {
+                'lunes-jueves': 'Lunes y Jueves',
+                'martes-viernes': 'Martes y Viernes'
+            };
+
+            const GRUPOS = {
+                'mañana-9:00-10:30':  'Primer grupo de la mañana',
+                'mañana-11:00-12:30': 'Segundo grupo de la mañana',
+                'tarde-14:00-15:30':  'Primer grupo de la tarde',
+                'tarde-16:00-17:30':  'Segundo grupo de la tarde'
+            };
+
+            const form = document.getElementById('registration-form');
+            const submitBtn = document.getElementById('next-btn');
+            const timeCards = document.querySelectorAll('.time-card');
+            const scheduleErrorGroup = document.getElementById('group-schedule');
+            const actionsSection = form.querySelector('.actions-section');
+
+            const fields = {
+                name: document.getElementById('full-name'),
+                whatsapp: document.getElementById('whatsapp'),
+                email: document.getElementById('email')
+            };
+
+            const capacityNotice = document.getElementById('capacity-notice');
+            const capacityNoticeText = document.getElementById('capacity-notice-text');
+
+            let selectedSchedule = null;
+            let isSubmitting = false;
+
+            // Mapa de cupos: "Días||Grupo" → { disponibles, limite, lleno }
+            let availabilityMap = null;
+
+            const savedLevel = localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
+            if (savedLevel !== 'basico-nuevo') {
+                window.location.href = 'seleccionDenivel.html';
+                return;
+            }
+
+            function validateEmail(email) {
+                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            }
+
+            function validateField(fieldName) {
+                const group = document.getElementById(`group-${fieldName === 'name' ? 'name' : fieldName}`);
+                let isValid = true;
+
+                if (fieldName === 'name') {
+                    isValid = fields.name.value.trim().length >= 3;
+                } else if (fieldName === 'whatsapp') {
+                    isValid = fields.whatsapp.value.trim().length >= 8;
+                } else if (fieldName === 'email') {
+                    isValid = validateEmail(fields.email.value.trim());
+                }
+
+                group.classList.toggle('invalid', !isValid);
+                return isValid;
+            }
+
+            function validateSchedule() {
+                const isValid = selectedSchedule !== null;
+                scheduleErrorGroup.style.display = isValid ? 'none' : 'block';
+                scheduleErrorGroup.classList.toggle('invalid', !isValid);
+                return isValid;
+            }
+
+            function isFormComplete() {
+                return (
+                    fields.name.value.trim().length >= 3 &&
+                    fields.whatsapp.value.trim().length >= 8 &&
+                    validateEmail(fields.email.value.trim()) &&
+                    selectedSchedule !== null
+                );
+            }
+
+            function updateSubmitButton() {
+                submitBtn.disabled = isSubmitting || !isFormComplete();
+            }
+
+            function buildRegistrationPayload() {
+                const availability = getCardAvailability(selectedSchedule.days, selectedSchedule.time);
+
+                return {
+                    nivel: 'Inglés Básico Nuevo',
+                    nombre: fields.name.value.trim(),
+                    whatsapp: fields.whatsapp.value.trim(),
+                    email: fields.email.value.trim(),
+                    dias: DAYS_LABELS[selectedSchedule.days] || selectedSchedule.days,
+                    horario: selectedSchedule.label,
+                    grupo: GRUPOS[selectedSchedule.time] || '',
+                    scheduleDays: selectedSchedule.days,
+                    scheduleTime: selectedSchedule.time,
+                    inicioClases: LINGOLA_CONFIG.inicioClases.fecha,
+                    cuposDisponibles: availability ? availability.disponibles : null,
+                    cuposLimite: PAGE_CONFIG.CUPOS_LIMITE
+                };
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               SISTEMA DE CUPOS
+               Cada combinación de días + horario admite un máximo de
+               PAGE_CONFIG.CUPOS_LIMITE estudiantes. El conteo real vive en
+               Google Sheets y se consulta al backend de Apps Script.
+               ═══════════════════════════════════════════════════════════════ */
+
+            /** Clave única de un grupo: "Lunes y Jueves||Primer grupo de la mañana" */
+            function buildGroupKey(days, time) {
+                return (DAYS_LABELS[days] || days) + '||' + (GRUPOS[time] || '');
+            }
+
+            /** Devuelve la disponibilidad conocida de una tarjeta, o null si aún no se cargó. */
+            function getCardAvailability(days, time) {
+                if (!availabilityMap) return null;
+                return availabilityMap[buildGroupKey(days, time)] || null;
+            }
+
+            /**
+             * Consulta los cupos al backend mediante JSONP.
+             * Se usa JSONP porque la página puede abrirse desde cualquier
+             * origen (incluido file://) y así la respuesta siempre es legible.
+             */
+            function fetchAvailability() {
+                return new Promise((resolve, reject) => {
+                    const url = PAGE_CONFIG.GAS_WEB_APP_URL;
+
+                    if (!url || !url.includes('/macros/s/') || !url.endsWith('/exec')) {
+                        reject(new Error('URL del backend no configurada.'));
+                        return;
+                    }
+
+                    const callbackName = 'lingolaCupos_' + Date.now();
+                    const script = document.createElement('script');
+                    let finished = false;
+
+                    const cleanup = () => {
+                        finished = true;
+                        delete window[callbackName];
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                    };
+
+                    const timer = setTimeout(() => {
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('Tiempo de espera agotado.'));
+                    }, 12000);
+
+                    window[callbackName] = (data) => {
+                        clearTimeout(timer);
+                        cleanup();
+                        resolve(data);
+                    };
+
+                    script.onerror = () => {
+                        clearTimeout(timer);
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('No se pudo consultar la disponibilidad.'));
+                    };
+
+                    script.src = url + '?action=disponibilidad&callback=' + callbackName +
+                                 '&t=' + Date.now();
+                    document.body.appendChild(script);
+                });
+            }
+
+            /** Pinta el estado de cupos en una tarjeta concreta. */
+            function renderCardAvailability(card, info) {
+                const statusEl = card.querySelector('[data-role="slot-status"]');
+                if (!statusEl) return;
+
+                statusEl.classList.remove('is-available', 'is-limited', 'is-full');
+                card.classList.remove('is-full');
+
+                if (!info) {
+                    statusEl.innerHTML = '';
+                    return;
+                }
+
+                if (info.lleno) {
+                    card.classList.add('is-full');
+                    card.setAttribute('aria-disabled', 'true');
+                    statusEl.classList.add('is-full');
+                    statusEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Cupo lleno';
+                    return;
+                }
+
+                card.removeAttribute('aria-disabled');
+                statusEl.classList.add(info.disponibles <= 3 ? 'is-limited' : 'is-available');
+                statusEl.innerHTML = '<i class="fa-solid fa-user-group"></i> ' +
+                    info.disponibles + ' de ' + info.limite + ' cupos disponibles';
+            }
+
+            /** Muestra un aviso general bajo la cuadrícula de horarios. */
+            function showCapacityNotice(message, isWarning) {
+                if (!message) {
+                    capacityNotice.classList.remove('visible', 'is-warning');
+                    capacityNoticeText.textContent = '';
+                    return;
+                }
+                capacityNoticeText.textContent = message;
+                capacityNotice.classList.add('visible');
+                capacityNotice.classList.toggle('is-warning', Boolean(isWarning));
+            }
+
+            /** Aplica la respuesta del backend a las 8 tarjetas. */
+            function applyAvailability(grupos) {
+                availabilityMap = {};
+
+                grupos.forEach(grupo => {
+                    availabilityMap[grupo.dias + '||' + grupo.grupo] = {
+                        inscritos: grupo.inscritos,
+                        disponibles: grupo.disponibles,
+                        limite: grupo.limite,
+                        lleno: grupo.lleno
+                    };
+                });
+
+                timeCards.forEach(card => {
+                    renderCardAvailability(
+                        card,
+                        getCardAvailability(card.dataset.days, card.dataset.time)
+                    );
+                });
+
+                // Si el horario guardado quedó lleno mientras tanto, se deselecciona.
+                if (selectedSchedule) {
+                    const info = getCardAvailability(selectedSchedule.days, selectedSchedule.time);
+                    if (info && info.lleno) {
+                        timeCards.forEach(c => c.classList.remove('selected'));
+                        selectedSchedule = null;
+                        saveRegistrationDraft();
+                        updateSubmitButton();
+                        showCapacityNotice(
+                            'El horario que habías seleccionado ya alcanzó el máximo de ' +
+                            PAGE_CONFIG.CUPOS_LIMITE + ' estudiantes. Por favor, elige otro horario disponible.',
+                            true
+                        );
+                        return;
+                    }
+                }
+
+                const todosLlenos = grupos.every(g => g.lleno);
+                if (todosLlenos) {
+                    showCapacityNotice(
+                        'Todos los grupos alcanzaron el máximo de ' + PAGE_CONFIG.CUPOS_LIMITE +
+                        ' estudiantes. Escríbenos por WhatsApp para conocer la disponibilidad del próximo ciclo.',
+                        true
+                    );
+                } else {
+                    showCapacityNotice('');
+                }
+            }
+
+            /** Carga inicial de la disponibilidad. */
+            function loadAvailability() {
+                timeCards.forEach(card => {
+                    const statusEl = card.querySelector('[data-role="slot-status"]');
+                    if (statusEl) {
+                        statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Comprobando cupos…';
+                    }
+                });
+
+                fetchAvailability()
+                    .then(respuesta => {
+                        if (!respuesta || respuesta.status !== 'success' || !Array.isArray(respuesta.grupos)) {
+                            throw new Error('Respuesta de disponibilidad no válida.');
+                        }
+                        applyAvailability(respuesta.grupos);
+                    })
+                    .catch(error => {
+                        // La verificación definitiva ocurre igualmente en el servidor
+                        // al enviar la inscripción, así que el formulario sigue usable.
+                        console.warn('[Lingola] No se pudo cargar la disponibilidad:', error.message);
+                        availabilityMap = null;
+                        timeCards.forEach(card => renderCardAvailability(card, null));
+                        showCapacityNotice('');
+                    });
+            }
+
+            function saveRegistrationDraft() {
+                const draft = {
+                    nombre: fields.name.value.trim(),
+                    whatsapp: fields.whatsapp.value.trim(),
+                    email: fields.email.value.trim(),
+                    scheduleDays: selectedSchedule ? selectedSchedule.days : null,
+                    scheduleTime: selectedSchedule ? selectedSchedule.time : null
+                };
+                localStorage.setItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY, JSON.stringify(draft));
+            }
+
+            function restoreRegistrationDraft() {
+                const saved = localStorage.getItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+                if (!saved) return;
+
+                try {
+                    const draft = JSON.parse(saved);
+                    if (draft.nombre) fields.name.value = draft.nombre;
+                    if (draft.whatsapp) fields.whatsapp.value = draft.whatsapp;
+                    if (draft.email) fields.email.value = draft.email;
+
+                    if (draft.scheduleDays && draft.scheduleTime) {
+                        timeCards.forEach(card => {
+                            if (card.dataset.days === draft.scheduleDays && card.dataset.time === draft.scheduleTime) {
+                                card.classList.add('selected');
+                                selectedSchedule = {
+                                    days: card.dataset.days,
+                                    time: card.dataset.time,
+                                    label: card.querySelector('.time-text').textContent.trim()
+                                };
+                            }
+                        });
+                    }
+                } catch (e) {
+                    localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+                }
+            }
+
+            function proceedToContract() {
+                const payload = buildRegistrationPayload();
+                localStorage.setItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY, JSON.stringify(payload));
+                window.location.href = PAGE_CONFIG.CONTRACT_PAGE;
+            }
+
+            function showFormFeedback(message, type) {
+                let feedback = document.getElementById('lingola-form-feedback');
+
+                if (!feedback) {
+                    feedback = document.createElement('div');
+                    feedback.id = 'lingola-form-feedback';
+                    feedback.setAttribute('role', 'alert');
+                    form.insertBefore(feedback, actionsSection);
+                }
+
+                const isSuccess = type === 'success';
+                feedback.textContent = message;
+                feedback.style.cssText = [
+                    'margin-bottom: 1.25rem',
+                    'padding: 1rem 1.25rem',
+                    'border-radius: 12px',
+                    'font-size: 0.95rem',
+                    'font-weight: 500',
+                    'text-align: center',
+                    `color: ${isSuccess ? '#166534' : '#991B1B'}`,
+                    `background: ${isSuccess ? 'rgba(22, 101, 52, 0.08)' : 'rgba(239, 68, 68, 0.08)'}`,
+                    `border: 1px solid ${isSuccess ? 'rgba(22, 101, 52, 0.2)' : 'rgba(239, 68, 68, 0.25)'}`
+                ].join(';');
+            }
+
+            function clearFormFeedback() {
+                const feedback = document.getElementById('lingola-form-feedback');
+                if (feedback) {
+                    feedback.remove();
+                }
+            }
+
+            function setSubmitLoading(loading) {
+                isSubmitting = loading;
+                submitBtn.disabled = loading || !isFormComplete();
+
+                if (loading) {
+                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
+                } else {
+                    submitBtn.innerHTML = 'Siguiente <i class="fa-solid fa-arrow-right"></i>';
+                }
+            }
+
+            Object.entries(fields).forEach(([key, input]) => {
+                const fieldName = key === 'name' ? 'name' : key;
+
+                input.addEventListener('input', () => {
+                    validateField(fieldName);
+                    saveRegistrationDraft();
+                    updateSubmitButton();
+                });
+
+                input.addEventListener('blur', () => {
+                    validateField(fieldName);
+                    saveRegistrationDraft();
+                    updateSubmitButton();
+                });
+            });
+
+            timeCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    // Un grupo lleno no puede seleccionarse.
+                    if (card.classList.contains('is-full')) {
+                        showCapacityNotice(
+                            'Ese grupo ya alcanzó el máximo de ' + PAGE_CONFIG.CUPOS_LIMITE +
+                            ' estudiantes. Por favor, selecciona otro horario disponible.',
+                            true
+                        );
+                        return;
+                    }
+
+                    showCapacityNotice('');
+                    timeCards.forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selectedSchedule = {
+                        days: card.dataset.days,
+                        time: card.dataset.time,
+                        label: card.querySelector('.time-text').textContent.trim()
+                    };
+                    scheduleErrorGroup.style.display = 'none';
+                    scheduleErrorGroup.classList.remove('invalid');
+                    saveRegistrationDraft();
+                    updateSubmitButton();
+                });
+            });
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                clearFormFeedback();
+
+                const isNameValid = validateField('name');
+                const isWhatsappValid = validateField('whatsapp');
+                const isEmailValid = validateField('email');
+                const isScheduleValid = validateSchedule();
+
+                if (!isNameValid || !isWhatsappValid || !isEmailValid || !isScheduleValid) {
+                    return;
+                }
+
+                // Última comprobación local de cupos antes de avanzar.
+                // (El servidor vuelve a validarlo al registrar la inscripción.)
+                const availability = getCardAvailability(selectedSchedule.days, selectedSchedule.time);
+                if (availability && availability.lleno) {
+                    showFormFeedback(
+                        'El horario seleccionado ya alcanzó el máximo de ' + PAGE_CONFIG.CUPOS_LIMITE +
+                        ' estudiantes. Selecciona otro horario disponible para continuar.',
+                        'error'
+                    );
+                    loadAvailability();
+                    return;
+                }
+
+                setSubmitLoading(true);
+                showFormFeedback('Datos validados correctamente. Redirigiendo...', 'success');
+                proceedToContract();
+            });
+
+            restoreRegistrationDraft();
+            updateSubmitButton();
+            loadAvailability();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalles del Programa - Lingola English Teaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- VARIABLES DE COLOR Y CONFIGURACIÓN --- */
+        :root {
+            --primary-color: #132A4A; /* Azul Marino */
+            --accent-color: #EAB308; /* Dorado */
+            --white-color: #FFFFFF; /* Blanco */
+            --bg-color: #F8FAFC; /* Gris ultra claro para fondo */
+            --text-dark: #1E293B; /* Texto principal */
+            --text-muted: #64748B; /* Texto secundario */
+            --border-color: #E2E8F0; /* Bordes por defecto */
+            --shadow-soft: 0 10px 25px -5px rgba(19, 42, 74, 0.05), 0 8px 10px -6px rgba(19, 42, 74, 0.05);
+        }
+
+        /* --- ESTILOS GENERALES --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- ENCABEZADO & NAVBAR --- */
+        header {
+            background-color: var(--white-color);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        /* --- BARRA DE PROGRESO (PASO 2 DE 4 -> 50%) --- */
+        .progress-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 50%; /* Paso 2 de 4 (50%) */
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        main {
+            flex: 1;
+            max-width: 1000px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Sección de títulos con animación */
+        .title-section {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .title-section h1 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -0.5px;
+        }
+
+        .title-section p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* --- TARJETA PRINCIPAL DEL PROGRAMA --- */
+        .program-card {
+            background-color: var(--white-color);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 3rem;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        /* Encabezado interno de la tarjeta (Duración) */
+        .program-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .meta-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .duration-badge {
+            background-color: rgba(19, 42, 74, 0.05);
+            color: var(--primary-color);
+            padding: 0.5rem 1.25rem;
+            border-radius: 99px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 1px solid rgba(19, 42, 74, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .program-description {
+            font-size: 1.05rem;
+            color: var(--text-dark);
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+        }
+
+        /* --- CONTENIDOS Y BENEFICIOS (DOS COLUMNAS) --- */
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 3rem;
+        }
+
+        .details-column h2 {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .details-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .details-list li {
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        /* Íconos de viñeta personalizados */
+        .details-list li i {
+            margin-top: 0.2rem;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .content-col li i {
+            color: var(--primary-color);
+        }
+
+        .benefits-col li i {
+            color: var(--accent-color); /* Dorado para los beneficios */
+        }
+
+        /* --- BOTONES DE NAVEGACIÓN --- */
+        .actions-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .btn-nav {
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        /* Botón Anterior (Estilo Outline neutro/profundo) */
+        .btn-prev {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-prev:hover {
+            background-color: rgba(19, 42, 74, 0.04);
+            transform: translateX(-3px);
+        }
+
+        /* Botón Siguiente (Estilo Sólido Corporativo) */
+        .btn-next {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+            box-shadow: 0 4px 12px rgba(19, 42, 74, 0.2);
+        }
+
+        .btn-next:hover {
+            background-color: #1a3a66;
+            transform: translateX(3px);
+        }
+
+        /* --- RESPONSIVE DESIGN (MEDIA QUERIES) --- */
+        @media (max-width: 768px) {
+            main {
+                padding: 2rem 1rem;
+            }
+            .title-section {
+                margin-bottom: 2rem;
+            }
+            .title-section h1 {
+                font-size: 1.75rem;
+            }
+            .program-card {
+                padding: 2rem 1.5rem;
+            }
+            .details-grid {
+                grid-template-columns: 1fr;
+                gap: 2.5rem;
+            }
+        }
+
+        @media (max-width: 500px) {
+            header {
+                padding: 1rem;
+            }
+            .header-container {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .progress-wrapper {
+                max-width: 100%;
+                align-items: center;
+            }
+            .actions-section {
+                flex-direction: column-reverse;
+                gap: 1rem;
+            }
+            .btn-nav {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* --- TARJETA DE DETALLES DE INSCRIPCIÓN --- */
+        .enrollment-card {
+            background-color: var(--white-color);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: var(--shadow-soft);
+            margin-bottom: 3rem;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .enrollment-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .enrollment-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .enrollment-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 1.5rem 1rem;
+            background-color: rgba(19, 42, 74, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .enrollment-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(19, 42, 74, 0.08);
+        }
+
+        .enrollment-icon {
+            font-size: 1.6rem;
+            margin-bottom: 0.75rem;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background-color: rgba(19, 42, 74, 0.06);
+            color: var(--primary-color);
+        }
+
+        .enrollment-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .enrollment-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.35rem;
+        }
+
+        .enrollment-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .enrollment-card {
+                padding: 2rem 1.5rem;
+            }
+            .enrollment-grid {
+                grid-template-columns: 1fr;
+                gap: 1.25rem;
+            }
+        }
+
+        /* --- ANIMACIONES --- */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <a href="seleccionDenivel.html" class="logo">
+                <i class="fa-solid fa-graduation-cap"></i> Lingola<span>.</span>
+            </a>
+            
+            <div class="progress-wrapper">
+                <span class="progress-text">Paso 2 de 4</span>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="title-section">
+            <h1>Programa de Inglés Básico</h1>
+            <p>Construye una base sólida y avanza hasta un nivel intermedio con confianza.</p>
+        </section>
+
+        <section class="program-card">
+            <div class="program-meta">
+                <div class="meta-title">
+                    <i class="fa-solid fa-bookmark"></i> Resumen del Plan
+                </div>
+                <div class="duration-badge">
+                    <i class="fa-solid fa-calendar-days"></i> Duración: 6 meses
+                </div>
+            </div>
+
+            <p class="program-description">
+                Este programa está diseñado para estudiantes que están comenzando desde cero o poseen conocimientos muy limitados del idioma. A lo largo de seis meses desarrollarás las habilidades fundamentales para comprender, hablar, leer y escribir en inglés con seguridad.
+            </p>
+
+            <div class="details-grid">
+                <div class="details-column">
+                    <h2><i class="fa-solid fa-graduation-cap"></i> ¿Qué aprenderás?</h2>
+                    <ul class="details-list content-col">
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Vocabulario esencial para la vida diaria.</span></li>
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Gramática básica paso a paso.</span></li>
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Pronunciación y comprensión auditiva.</span></li>
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Conversaciones prácticas.</span></li>
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Expresiones comunes utilizadas por hablantes nativos.</span></li>
+                        <li><i class="fa-solid fa-chevron-right"></i><span>Desarrollo progresivo hasta alcanzar un nivel intermedio.</span></li>
+                    </ul>
+                </div>
+
+                <div class="details-column">
+                    <h2><i class="fa-solid fa-circle-check"></i> Beneficios del programa</h2>
+                    <ul class="details-list benefits-col">
+                        <li><i class="fa-solid fa-circle-check"></i><span>Clases estructuradas.</span></li>
+                        <li><i class="fa-solid fa-circle-check"></i><span>Seguimiento personalizado.</span></li>
+                        <li><i class="fa-solid fa-circle-check"></i><span>Material de apoyo.</span></li>
+                        <li><i class="fa-solid fa-circle-check"></i><span>Actividades prácticas.</span></li>
+                        <li><i class="fa-solid fa-circle-check"></i><span>Desarrollo de confianza al hablar.</span></li>
+                        <li><i class="fa-solid fa-circle-check"></i><span>Clases en vivo y online mediante Zoom</span></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ DETALLES DE INSCRIPCIÓN (datos desde lingola-config.js) ═══ -->
+        <section class="enrollment-card" id="enrollment-details" aria-label="Detalles de inscripción">
+            <div class="enrollment-header">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Detalles de inscripción</span>
+            </div>
+            <div class="enrollment-grid">
+                <div class="enrollment-item">
+                    <div class="enrollment-icon">💳</div>
+                    <span class="enrollment-label">Inscripción</span>
+                    <span class="enrollment-value" id="cfg-inscripcion"></span>
+                    <span class="enrollment-desc" id="cfg-inscripcion-desc"></span>
+                </div>
+                <div class="enrollment-item">
+                    <div class="enrollment-icon">🎓</div>
+                    <span class="enrollment-label">Mensualidad</span>
+                    <span class="enrollment-value" id="cfg-mensualidad"></span>
+                    <span class="enrollment-desc" id="cfg-mensualidad-desc"></span>
+                </div>
+                <div class="enrollment-item">
+                    <div class="enrollment-icon">📅</div>
+                    <span class="enrollment-label">Inicio de clases</span>
+                    <span class="enrollment-value" id="cfg-inicio"></span>
+                    <span class="enrollment-desc" id="cfg-inicio-desc"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="actions-section">
+            <a href="seleccionDenivel.html" class="btn-nav btn-prev">
+                <i class="fa-solid fa-arrow-left"></i> Anterior
+            </a>
+            <a href="datos-personales-basico-nuevo.html" class="btn-nav btn-next">
+                Siguiente <i class="fa-solid fa-arrow-right"></i>
+            </a>
+        </section>
+    </main>
+
+    <!-- Configuración centralizada del curso -->
+    <script src="lingola-config.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Verificación de nivel seleccionado
+            const selectedLevel = localStorage.getItem('lingola_selected_level_nuevo');
+            if (selectedLevel !== 'basico-nuevo') {
+                window.location.href = 'seleccionDenivel.html';
+            }
+
+            // Poblar la tarjeta de detalles de inscripción desde la config
+            document.getElementById('cfg-inscripcion').textContent       = LINGOLA_CONFIG.inscripcionFormateada;
+            document.getElementById('cfg-inscripcion-desc').textContent   = LINGOLA_CONFIG.inscripcion.descripcion;
+            document.getElementById('cfg-mensualidad').textContent        = LINGOLA_CONFIG.mensualidadFormateada;
+            document.getElementById('cfg-mensualidad-desc').textContent   = LINGOLA_CONFIG.mensualidad.descripcion;
+            document.getElementById('cfg-inicio').textContent             = LINGOLA_CONFIG.inicioClases.fecha;
+            document.getElementById('cfg-inicio-desc').textContent        = LINGOLA_CONFIG.inicioClases.descripcion;
+        });
+    </script>
+</body>
+</html>

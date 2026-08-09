@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscripción - Lingola English Teaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- VARIABLES DE COLOR Y CONFIGURACIÓN --- */
+        :root {
+            --primary-color: #132A4A; /* Azul Marino */
+            --accent-color: #EAB308; /* Dorado */
+            --white-color: #FFFFFF; /* Blanco */
+            --bg-color: #F8FAFC; /* Gris ultra claro para fondo */
+            --text-dark: #1E293B; /* Texto principal */
+            --text-muted: #64748B; /* Texto secundario */
+            --border-color: #E2E8F0; /* Bordes por defecto */
+            --shadow-soft: 0 10px 25px -5px rgba(19, 42, 74, 0.05), 0 8px 10px -6px rgba(19, 42, 74, 0.05);
+            --shadow-active: 0 20px 25px -5px rgba(234, 179, 8, 0.15);
+        }
+
+        /* --- ESTILOS GLOBALMENTE RESPONSIVOS --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- ENCABEZADO & NAVBAR --- */
+        header {
+            background-color: var(--white-color);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        /* --- BARRA DE PROGRESO --- */
+        .progress-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 25%; /* Paso 1 de 4 (25%) */
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        main {
+            flex: 1;
+            max-width: 1100px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .title-section {
+            text-align: center;
+            margin-bottom: 3.5rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .title-section h1 {
+            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -0.5px;
+        }
+
+        .title-section p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* --- CUADRÍCULA DE 2 TARJETAS EQUILIBRADAS Y CENTRADAS --- */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin: 0 auto 4rem;
+            max-width: 760px; /* Ajuste perfecto para equilibrar y centrar las dos opciones */
+            width: 100%;
+        }
+
+        .level-card {
+            background-color: var(--white-color);
+            border: 2px solid var(--border-color);
+            border-radius: 18px;
+            padding: 2.5rem 2rem;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Efecto Hover */
+        .level-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+            box-shadow: 0 15px 30px rgba(19, 42, 74, 0.08);
+        }
+
+        /* Íconos de las Tarjetas */
+        .card-icon {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(19, 42, 74, 0.05);
+            color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .level-card h3 {
+            color: var(--primary-color);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .level-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Estado Seleccionado (Activo con Dorado Corporativo) */
+        .level-card.selected {
+            border-color: var(--accent-color);
+            box-shadow: var(--shadow-active);
+            background-color: rgba(234, 179, 8, 0.02);
+        }
+
+        .level-card.selected .card-icon {
+            background-color: var(--accent-color);
+            color: var(--primary-color);
+        }
+
+        /* Indicador visual de check de selección */
+        .level-card .check-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 24px;
+            height: 24px;
+            background-color: var(--accent-color);
+            color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s ease;
+        }
+
+        .level-card.selected .check-indicator {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* --- SECCIÓN DEL BOTÓN (INFERIOR DERECHA) --- */
+        .actions-section {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .btn-next {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(19, 42, 74, 0.2);
+        }
+
+        .btn-next:hover:not(:disabled) {
+            background-color: #1a3a66;
+            transform: translateX(3px);
+        }
+
+        /* Estado deshabilitado */
+        .btn-next:disabled {
+            background-color: #CBD5E1;
+            color: #94A3B8;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- RESPONSIVE DESIGN (MEDIA QUERIES) --- */
+        @media (max-width: 650px) {
+            header {
+                padding: 1rem;
+            }
+            .header-container {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .progress-wrapper {
+                max-width: 100%;
+                align-items: center;
+            }
+            main {
+                padding: 2rem 1rem;
+            }
+            .title-section {
+                margin-bottom: 2rem;
+            }
+            .title-section h1 {
+                font-size: 1.75rem;
+            }
+            .title-section p {
+                font-size: 1rem;
+            }
+            .cards-grid {
+                grid-template-columns: 1fr; /* Columna única en móviles */
+                gap: 1.25rem;
+                margin-bottom: 2.5rem;
+            }
+            .level-card {
+                padding: 2rem 1.5rem;
+                flex-direction: row;
+                text-align: left;
+                gap: 1.25rem;
+                align-items: center;
+            }
+            .card-icon {
+                margin-bottom: 0;
+                width: 55px;
+                height: 55px;
+                font-size: 1.5rem;
+                flex-shrink: 0;
+            }
+            .actions-section {
+                width: 100%;
+            }
+            .btn-next {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* --- ANIMACIONES --- */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo">
+                <i class="fa-solid fa-graduation-cap"></i> Lingola<span>.</span>
+            </a>
+            
+            <div class="progress-wrapper">
+                <span class="progress-text">Paso 1 de 4</span>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="title-section">
+            <h1>Comencemos tu proceso de inscripción</h1>
+            <p>Selecciona el nivel que mejor describa tu situación actual. Esto nos ayudará a personalizar tu experiencia de aprendizaje.</p>
+        </section>
+
+        <section class="cards-grid" style="grid-template-columns: 1fr; max-width: 380px;">
+            
+            <div class="level-card" data-level="basico-nuevo">
+                <div class="check-indicator"><i class="fa-solid fa-check"></i></div>
+                <div class="card-icon">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <h3>Inglés Básico</h3>
+                <p>Tengo conocimientos limitados o estoy comenzando desde cero.</p>
+            </div>
+
+            <div class="level-card" data-level="avanzado" style="display: none;">
+                <div class="check-indicator"><i class="fa-solid fa-check"></i></div>
+                <div class="card-icon">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h3>Inglés Avanzado</h3>
+                <p>Puedo mantener conversaciones complejas y deseo perfeccionar mi nivel.</p>
+            </div>
+
+        </section>
+
+        <section class="actions-section">
+            <button id="next-btn" class="btn-next" disabled>
+                Siguiente <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </section>
+    </main>
+
+    <script>
+        /**
+         * Lingola — Página 1: selección de nivel
+         * Guarda el nivel en localStorage y redirige al formulario correspondiente.
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.level-card');
+            const nextBtn = document.getElementById('next-btn');
+            let selectedLevel = null;
+
+            cards.forEach(card => {
+                card.addEventListener('click', () => {
+                    cards.forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selectedLevel = card.getAttribute('data-level');
+                    nextBtn.removeAttribute('disabled');
+                });
+            });
+
+            // Restaurar selección previa si el usuario regresa
+            const savedLevel = localStorage.getItem('lingola_selected_level_nuevo') || localStorage.getItem('lingola_selected_level');
+            if (savedLevel) {
+                cards.forEach(card => {
+                    if (card.getAttribute('data-level') === savedLevel) {
+                        card.classList.add('selected');
+                        selectedLevel = savedLevel;
+                        nextBtn.removeAttribute('disabled');
+                    }
+                });
+            }
+
+            nextBtn.addEventListener('click', () => {
+                if (selectedLevel) {
+                    if (selectedLevel === 'basico-nuevo') {
+                        localStorage.setItem('lingola_selected_level_nuevo', 'basico-nuevo');
+                        localStorage.setItem('lingola_selected_level', 'basico-nuevo');
+                        window.location.href = 'informacion-basico-nuevo.html';
+                    } else {
+                        localStorage.setItem('lingola_selected_level', selectedLevel);
+                        const targetPage = selectedLevel === 'avanzado'
+                            ? 'informacion-avanzado.html'
+                            : 'informacion-basico.html';
+                        window.location.href = targetPage;
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
