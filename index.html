@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lingola English Teaching — Inscripción</title>
+    <meta name="description" content="Inscríbete al curso de Inglés Básico de Lingola English Teaching.">
+    <meta name="robots" content="noindex">
+    <link rel="canonical" href="seleccionDenivel.html">
+    <meta http-equiv="refresh" content="0; url=seleccionDenivel.html">
+    <script>window.location.replace('seleccionDenivel.html');</script>
+
+    <style>
+        :root {
+            --primary-color: #132A4A;
+            --accent-color: #EAB308;
+            --bg-color: #F8FAFC;
+            --text-muted: #64748B;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(19, 42, 74, 0.12);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        a {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Respeta la preferencia de movimiento reducido del sistema */
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation: none; border-top-color: rgba(19, 42, 74, 0.12); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logo">Lingola<span>.</span></div>
+    <div class="spinner"></div>
+    <p>
+        Redirigiendo al inicio de inscripción…<br>
+        Si no ocurre automáticamente, <a href="seleccionDenivel.html">continúa aquí</a>.
+    </p>
+
+</body>
+</html>
