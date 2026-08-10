@@ -586,7 +586,10 @@
             <p>Necesitamos esta información para contactarte y coordinar tu inicio en el programa.</p>
         </section>
 
-        <form id="registration-form" novalidate>
+        <!-- autocomplete="off": tras un envío correcto el formulario debe
+             quedar en blanco, sin que el navegador reponga los datos del
+             estudiante anterior al recargar o volver atrás. -->
+        <form id="registration-form" novalidate autocomplete="off">
             <div class="form-card">
                 
                 <div class="form-section-title">
@@ -1074,6 +1077,36 @@
                 }
             }
 
+            /**
+             * Devuelve el formulario a su estado inicial: campos vacíos,
+             * horario sin marcar, avisos ocultos y botón deshabilitado.
+             * Se usa cuando la inscripción anterior ya se completó, para que
+             * el siguiente estudiante lo encuentre limpio.
+             */
+            function resetForm() {
+                form.reset();
+
+                Object.values(fields).forEach(input => { input.value = ''; });
+                ['name', 'whatsapp', 'email'].forEach(fieldName => {
+                    const group = document.getElementById('group-' + fieldName);
+                    if (group) group.classList.remove('invalid');
+                });
+
+                timeCards.forEach(card => card.classList.remove('selected'));
+                selectedSchedule = null;
+
+                scheduleErrorGroup.style.display = 'none';
+                scheduleErrorGroup.classList.remove('invalid');
+
+                showCapacityNotice('');
+                clearFormFeedback();
+
+                localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+
+                setSubmitLoading(false);
+                updateSubmitButton();
+            }
+
             function proceedToContract() {
                 const payload = buildRegistrationPayload();
                 localStorage.setItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY, JSON.stringify(payload));
@@ -1195,6 +1228,21 @@
                 setSubmitLoading(true);
                 showFormFeedback('Datos validados correctamente. Redirigiendo...', 'success');
                 proceedToContract();
+            });
+
+            /**
+             * Con el botón "atrás" el navegador puede restaurar esta página
+             * tal cual quedó (bfcache), sin volver a ejecutar el script. Si la
+             * inscripción ya se envió, el nivel guardado desaparece: entonces
+             * el formulario se limpia y se vuelve al primer paso, de modo que
+             * los datos de un estudiante nunca queden visibles para el
+             * siguiente.
+             */
+            window.addEventListener('pageshow', () => {
+                if (localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY) !== 'basico-nuevo') {
+                    resetForm();
+                    window.location.replace('seleccionDenivel.html');
+                }
             });
 
             restoreRegistrationDraft();

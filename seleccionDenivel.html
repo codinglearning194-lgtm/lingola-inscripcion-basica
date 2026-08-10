@@ -410,6 +410,13 @@
                 });
             });
 
+            /** Deja las tarjetas sin marcar y el botón deshabilitado. */
+            function clearSelection() {
+                cards.forEach(c => c.classList.remove('selected'));
+                selectedLevel = null;
+                nextBtn.setAttribute('disabled', '');
+            }
+
             // Restaurar selección previa si el usuario regresa
             const savedLevel = localStorage.getItem('lingola_selected_level_nuevo') || localStorage.getItem('lingola_selected_level');
             if (savedLevel) {
@@ -421,6 +428,18 @@
                     }
                 });
             }
+
+            /**
+             * Tras completar una inscripción se borra el nivel guardado. Si la
+             * página se restaura desde el historial (bfcache) sin recargar,
+             * aquí se retira la marca para que el siguiente estudiante empiece
+             * de cero.
+             */
+            window.addEventListener('pageshow', () => {
+                const stored = localStorage.getItem('lingola_selected_level_nuevo') ||
+                               localStorage.getItem('lingola_selected_level');
+                if (!stored) clearSelection();
+            });
 
             nextBtn.addEventListener('click', () => {
                 if (selectedLevel) {

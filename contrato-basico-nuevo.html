@@ -1212,6 +1212,7 @@
                 //    (LINGOLA_CONFIG.backend.gasWebAppUrl) para todo el proyecto.
                 GAS_WEB_APP_URL: LINGOLA_CONFIG.backend.gasWebAppUrl,
                 LEVEL_STORAGE_KEY: 'lingola_selected_level_nuevo',
+                LEGACY_LEVEL_STORAGE_KEY: 'lingola_selected_level',
                 REGISTRATION_STORAGE_KEY: 'lingola_registration_data_nuevo',
                 SUBMISSION_ID_KEY: 'lingola_submission_id_nuevo'
             };
@@ -1296,8 +1297,16 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
+            /**
+             * Borra todo rastro de la inscripción recién enviada para que el
+             * siguiente estudiante empiece con el formulario en blanco: datos
+             * personales, horario elegido y nivel seleccionado.
+             */
             function clearRegistrationStorage() {
                 localStorage.removeItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
+                // Clave heredada: si no se borra, la tarjeta de nivel seguiría
+                // apareciendo marcada al volver al primer paso.
+                localStorage.removeItem(PAGE_CONFIG.LEGACY_LEVEL_STORAGE_KEY);
                 localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
                 localStorage.removeItem(PAGE_CONFIG.SUBMISSION_ID_KEY);
             }
@@ -1444,6 +1453,10 @@
 
                 isCompleted = true;
                 clearRegistrationStorage();
+                // La casilla de aceptación vuelve a su estado inicial: nada
+                // queda marcado si alguien reabre esta página.
+                acceptCheckbox.checked = false;
+                registrationData = null;
                 btnWhatsapp.setAttribute('href', whatsappURL);
                 showSuccessView();
 
@@ -1540,6 +1553,25 @@
                 clearFeedback();
                 setSubmitLoading(true);
                 enviarInscripcion();
+            });
+
+            /**
+             * Al volver a esta página con el botón "atrás", el navegador puede
+             * restaurarla tal cual estaba (bfcache) sin recargar el script. Si
+             * la inscripción ya se completó desde otra pestaña o los datos
+             * fueron borrados, se vuelve al principio en vez de mostrar el
+             * contrato de un estudiante anterior.
+             */
+            window.addEventListener('pageshow', () => {
+                if (isCompleted) return;
+
+                const hasLevel = localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY) === 'basico-nuevo';
+                const hasData  = Boolean(localStorage.getItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY));
+
+                if (!hasLevel || !hasData) {
+                    acceptCheckbox.checked = false;
+                    window.location.replace('seleccionDenivel.html');
+                }
             });
 
             updateSubmitButton();
