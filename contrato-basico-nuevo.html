@@ -1309,6 +1309,19 @@
                 localStorage.removeItem(PAGE_CONFIG.LEGACY_LEVEL_STORAGE_KEY);
                 localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
                 localStorage.removeItem(PAGE_CONFIG.SUBMISSION_ID_KEY);
+
+                // Barrido final: cualquier otra clave del proyecto (prefijo
+                // "lingola_") queda eliminada de ambos almacenes, de modo que
+                // no sobreviva ningún dato del estudiante anterior.
+                [localStorage, window.sessionStorage].forEach(function (store) {
+                    try {
+                        Object.keys(store)
+                            .filter(function (key) { return key.indexOf('lingola_') === 0; })
+                            .forEach(function (key) { store.removeItem(key); });
+                    } catch (e) {
+                        // Almacenamiento no disponible (modo privado): nada que borrar.
+                    }
+                });
             }
 
             /**

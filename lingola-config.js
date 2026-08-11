@@ -42,7 +42,7 @@ const LINGOLA_CONFIG = {
 
     // ── Fechas ─────────────────────────────────────────────
     inicioClases: {
-        fecha: 'Lunes 3 de agosto',
+        fecha: 'Martes 1 de septiembre de 2026',
         descripcion: 'Fecha de inicio del próximo ciclo.',
     },
 

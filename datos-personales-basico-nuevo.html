@@ -1050,9 +1050,24 @@
                 localStorage.setItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY, JSON.stringify(draft));
             }
 
+            /** Vacía campos y horario sin tocar avisos ni el estado del botón. */
+            function clearFormFields() {
+                Object.values(fields).forEach(input => { input.value = ''; });
+                timeCards.forEach(card => card.classList.remove('selected'));
+                selectedSchedule = null;
+            }
+
             function restoreRegistrationDraft() {
                 const saved = localStorage.getItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
-                if (!saved) return;
+
+                // Sin borrador guardado el formulario debe verse recién abierto.
+                // Se limpia de forma explícita porque, al recargar o volver
+                // atrás, el navegador puede reponer por su cuenta lo que escribió
+                // el estudiante anterior aunque el almacenamiento ya esté vacío.
+                if (!saved) {
+                    clearFormFields();
+                    return;
+                }
 
                 try {
                     const draft = JSON.parse(saved);
@@ -1073,7 +1088,10 @@
                         });
                     }
                 } catch (e) {
+                    // Borrador corrupto: se descarta junto con lo que hubiera
+                    // alcanzado a restaurarse, para no dejar datos a medias.
                     localStorage.removeItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
+                    clearFormFields();
                 }
             }
 
@@ -1084,16 +1102,16 @@
              * el siguiente estudiante lo encuentre limpio.
              */
             function resetForm() {
+                // `form.reset()` cubre inputs, selects, checkboxes y radios que
+                // el formulario pueda tener; clearFormFields() garantiza además
+                // los campos controlados por script y el horario elegido.
                 form.reset();
+                clearFormFields();
 
-                Object.values(fields).forEach(input => { input.value = ''; });
                 ['name', 'whatsapp', 'email'].forEach(fieldName => {
                     const group = document.getElementById('group-' + fieldName);
                     if (group) group.classList.remove('invalid');
                 });
-
-                timeCards.forEach(card => card.classList.remove('selected'));
-                selectedSchedule = null;
 
                 scheduleErrorGroup.style.display = 'none';
                 scheduleErrorGroup.classList.remove('invalid');

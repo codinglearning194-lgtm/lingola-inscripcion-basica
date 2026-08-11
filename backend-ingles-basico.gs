@@ -131,7 +131,7 @@ var CONFIG = {
     programa:      'Programa de Inglés Básico',
     whatsapp:      '18495358676',
     // Se usa solo si el formulario no envía la fecha de inicio.
-    inicioClasesPorDefecto: 'Lunes 3 de agosto'
+    inicioClasesPorDefecto: 'Martes 1 de septiembre de 2026'
   },
 
   // ── Condiciones de pago (deben coincidir con el contrato) ──
