@@ -41,6 +41,16 @@ const LINGOLA_CONFIG = {
     },
 
     // ── Fechas ─────────────────────────────────────────────
+    // ⚠️ SINCRONIZACIÓN CON EL BACKEND
+    //    Esta fecha se muestra en las páginas web, pero el correo de
+    //    confirmación usa la del servidor. Desde la versión 4.0 el backend
+    //    ignora la fecha que envía el navegador (era un texto que cualquiera
+    //    podía manipular y que acababa dentro de un correo con nuestra marca).
+    //
+    //    Si cambias esta fecha, cambia TAMBIÉN en backend-ingles-basico.gs:
+    //        CONFIG.marca.inicioClasesPorDefecto
+    //    y vuelve a implementar el Web App. Si no, la web dirá una fecha y el
+    //    correo otra.
     inicioClases: {
         fecha: 'Martes 1 de septiembre de 2026',
         descripcion: 'Fecha de inicio del próximo ciclo.',
@@ -62,7 +72,7 @@ const LINGOLA_CONFIG = {
     //    implementar el Web App de Apps Script, actualiza
     //    únicamente este valor.
     backend: {
-        gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwg45v6BwSf63oF1EXELYr9U7h3yExktPAkOluXnvl2TiWVKzVSfEzNwt_uOaVEV2x6Iw/exec',
+        gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyqUIKLMjEI9h81uMaAuHveLMB8gTrZnhZ2TP02oF4Xhild4KaDeDnq_GISZQLIuOt3/exec',
         whatsappNumero: '18495358676',
         // Informativo para el frontend. El envío real de correos
         // ocurre en Google Apps Script (ADMIN_EMAIL en el backend).
@@ -70,6 +80,11 @@ const LINGOLA_CONFIG = {
     },
 
     // ── Cupos por grupo (días + horario) ───────────────────
+    // ⚠️ Este valor es solo para los textos que ve el estudiante. El límite
+    //    que de verdad se aplica vive en el servidor (CONFIG.limiteCupos) y
+    //    se comprueba dentro del bloqueo al registrar, de modo que tocar
+    //    este archivo desde el navegador no permite saltarse el cupo.
+    //    Manténlo igual que en el backend para que los mensajes cuadren.
     cupos: {
         limitePorGrupo: 15,
     },

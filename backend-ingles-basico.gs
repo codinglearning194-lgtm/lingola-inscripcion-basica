@@ -3,25 +3,40 @@
  * ║  Lingola English Teaching — Programa Inglés Básico                      ║
  * ║  Backend Independiente de Google Apps Script                             ║
  * ║                                                                         ║
- * ║  Versión:  3.0                                                          ║
- * ║  Fecha:    Julio 2026                                                   ║
+ * ║  Versión:  4.0                                                          ║
+ * ║  Fecha:    Agosto 2026                                                  ║
  * ║                                                                         ║
- * ║  NOVEDADES v3.0:                                                        ║
- * ║  • Límite de 15 cupos por combinación de días + horario (8 grupos).     ║
- * ║  • Consulta de disponibilidad en tiempo real (doGet ?action=...).       ║
- * ║  • Correo de confirmación al estudiante y aviso al administrador.       ║
- * ║  • Protección contra inscripciones y correos duplicados.                ║
+ * ║  NOVEDADES v4.0 — Robustez ante alta concurrencia (~100 solicitudes):   ║
+ * ║  • Sección crítica reducida: UNA sola lectura de la hoja por registro.  ║
+ * ║  • tryLock() con espera controlada; nadie recibe "Lock timeout" crudo.  ║
+ * ║  • Token temporal de un solo uso (HMAC-SHA256) para cada inscripción.   ║
+ * ║  • Límites de frecuencia (rate limiting) global, por correo y por       ║
+ * ║    WhatsApp, apoyados en CacheService.                                  ║
+ * ║  • Validación estricta de todos los campos en el servidor.              ║
+ * ║  • Neutralización de fórmulas al escribir en Google Sheets.             ║
+ * ║  • Deduplicación de correo en toda la hoja, no solo dentro del grupo.   ║
+ * ║  • Respuestas de error controladas: nunca se expone el detalle interno. ║
+ * ║  • Disponibilidad servida desde caché (20 s) en lugar de leer la hoja.  ║
  * ║                                                                         ║
  * ║  INSTRUCCIONES:                                                         ║
  * ║  1. Crea un nuevo proyecto en Google Apps Script.                        ║
  * ║  2. Pega este código completo.                                          ║
  * ║  3. Ejecuta la función setup() para crear la estructura en Sheets.      ║
+ * ║     · Si YA tienes inscripciones registradas, NO ejecutes setup():      ║
+ * ║       ejecuta ampliarBloquesParaCupos(), que amplía los bloques sin     ║
+ * ║       borrar nada.                                                      ║
  * ║  4. Publica como Web App (Implementar > Nueva Implementación):          ║
  * ║       - Ejecutar como:  Yo (tu cuenta)                                  ║
  * ║       - Quién tiene acceso:  Cualquier usuario                          ║
  * ║  5. Copia la URL (/exec) y colócala en lingola-config.js →              ║
  * ║     LINGOLA_CONFIG.backend.gasWebAppUrl                                 ║
  * ║  6. Autoriza los permisos de Gmail la primera vez (envío de correos).   ║
+ * ║                                                                         ║
+ * ║  ⚠️  LÍMITES REALES DE GOOGLE APPS SCRIPT (no dependen de este código): ║
+ * ║  • 30 ejecuciones simultáneas por script.                               ║
+ * ║  • Cuenta Gmail personal: 100 correos/día → 50 inscripciones/día.       ║
+ * ║    Google Workspace: 1500 correos/día → 750 inscripciones/día.          ║
+ * ║  • 6 min de ejecución por solicitud (igual en Workspace).               ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -39,10 +54,33 @@ var ADMIN_EMAIL = 'lingolaenglishteaching@gmail.com';
 
 /**
  * Prefijo interno que identifica el error de "cupo lleno".
- * Permite que el frontend distinga este caso de un error genérico.
+ * Se conserva por compatibilidad con versiones anteriores del backend.
  * @type {string}
  */
 var ERROR_CUPO_LLENO = '[CUPO_LLENO]';
+
+/**
+ * Códigos de error que viajan al frontend.
+ * El frontend decide qué mensaje mostrar a partir de estos valores, de modo
+ * que el texto interno del error nunca es necesario para tomar decisiones.
+ */
+var CODIGOS = {
+  CUPO_LLENO:             'CUPO_LLENO',              // El grupo llegó al límite
+  DATOS_INVALIDOS:        'DATOS_INVALIDOS',         // Payload manipulado o incompleto
+  TOKEN_INVALIDO:         'TOKEN_INVALIDO',          // Falta, está falsificado o ya se usó
+  TOKEN_EXPIRADO:         'TOKEN_EXPIRADO',          // Caducó por antigüedad
+  DEMASIADAS_SOLICITUDES: 'DEMASIADAS_SOLICITUDES',  // Rate limiting por identidad
+  OCUPADO:                'OCUPADO',                 // Saturación temporal: reintentar
+  ERROR:                  'ERROR'                    // Cualquier otro fallo
+};
+
+/** Claves usadas dentro de CacheService y PropertiesService. */
+var CLAVES = {
+  secretoToken:   'LINGOLA_TOKEN_SECRET',  // ScriptProperties
+  disponibilidad: 'disp_v4',               // Cache: respuesta de ?action=disponibilidad
+  token:          'tk_',                   // Cache: nonce de token ya consumido
+  rate:           'rl_'                    // Cache: contadores de frecuencia
+};
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -141,9 +179,105 @@ var CONFIG = {
     metodo:               'transferencia bancaria'
   },
 
-  // ── Prefijo de las claves de idempotencia en ScriptProperties ──
-  prefijoEnvio: 'SUB_'
+  // ── Prefijo de las claves de idempotencia ──
+  prefijoEnvio: 'SUB_',
+
+  // ── Longitudes y formatos aceptados por el servidor ──
+  // El backend NUNCA confía en las validaciones del HTML/JavaScript: todo
+  // campo que llega se vuelve a comprobar contra estos límites.
+  limites: {
+    nombreMin:            3,
+    nombreMax:            80,
+    whatsappMax:          25,    // Caracteres del campo tal cual se escribió
+    whatsappDigitosMin:   8,     // Dígitos reales una vez retirado el formato
+    whatsappDigitosMax:   15,    // Máximo del estándar E.164
+    correoMax:            100,
+    nivelMax:             40,
+    submissionIdMax:      64,
+    tokenMax:             400,
+    payloadMax:           8000   // Bytes del cuerpo de la solicitud
+  },
+
+  // ── Concurrencia y protección contra abuso ──
+  seguridad: {
+    // Si se desactiva, el endpoint vuelve a aceptar inscripciones sin token.
+    // Se deja configurable para poder diagnosticar, no para uso normal.
+    tokenRequerido:           true,
+    tokenTtlSegundos:         1800,   // 30 min de validez
+
+    // Espera máxima por el bloqueo antes de responder OCUPADO.
+    // Con ~0,8 s de sección crítica, cubre una cola de ~55 solicitudes.
+    esperaLockMs:             45000,
+
+    // Rate limiting (ventanas fijas sobre CacheService).
+    // El tope global va holgadamente por encima del pico legítimo previsto
+    // (100 usuarios + reintentos) para no castigar una avalancha real.
+    limiteGlobalIntentos:     400,  ventanaGlobalSegundos:     300,
+    limitePorCorreo:          5,    ventanaPorCorreoSegundos:  900,
+    limitePorWhatsapp:        6,    ventanaPorWhatsappSegundos: 900,
+    limiteTokensGlobal:       600,  ventanaTokensSegundos:     300
+  },
+
+  // ── Tiempos de vida en CacheService ──
+  cache: {
+    disponibilidadSegundos: 20,     // Evita releer la hoja en cada visita
+    idempotenciaSegundos:   21600   // 6 h: máximo que admite CacheService
+  },
+
+  // ── Política de duplicados ──
+  duplicados: {
+    // 'global' → un correo solo puede inscribirse una vez en toda la hoja.
+    // 'grupo'  → comportamiento anterior: se permite el mismo correo en
+    //            grupos distintos.
+    alcance:     'global',
+    // Bloquear también por número de WhatsApp repetido. Desactivado porque
+    // dos familiares pueden compartir el mismo número de contacto.
+    porWhatsapp: false
+  },
+
+  // ── Correos que se envían por cada inscripción ──
+  correos: {
+    // Confirmación al estudiante. Es la razón por la que se pide el correo,
+    // así que desactivarlo dejaría al estudiante sin comprobante.
+    confirmarEstudiante: true,
+
+    // Aviso al administrador por CADA inscripción.
+    //
+    // Desactivado a propósito: cada inscripción consumía DOS correos de la
+    // cuota diaria (100/día en una cuenta Gmail personal), lo que limitaba el
+    // sistema a 50 inscripciones al día. Con esto en false se envía UNO solo
+    // y la capacidad sube a 100 inscripciones diarias sin cambiar de cuenta.
+    //
+    // No se pierde información: cada inscripción queda registrada en la hoja
+    // de cálculo, que es la fuente de consulta habitual. Ponlo en true si
+    // prefieres recuperar el aviso inmediato por correo.
+    notificarAdministrador: false
+  }
 };
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECCIÓN 1B: EXPRESIONES REGULARES DE VALIDACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Nombre: letras latinas (con acentos), espacios, apóstrofos, puntos y guiones.
+ * Deliberadamente NO admite dígitos ni signos, que es lo que caracteriza a los
+ * envíos automatizados y a los intentos de inyectar contenido en la hoja.
+ */
+var RE_NOMBRE = /^[A-Za-zÀ-ÖØ-öø-ÿŠŽšžŸ' .’\-]+$/;
+
+/** Correo electrónico: comprobación estructural, no de existencia real. */
+var RE_CORREO = /^[^\s@]{1,64}@[^\s@]{1,255}\.[A-Za-z]{2,24}$/;
+
+/** Teléfono tal como lo escribe una persona: dígitos y separadores comunes. */
+var RE_WHATSAPP = /^[0-9+\-()\s.]+$/;
+
+/** Texto corto y neutro (nivel del curso). */
+var RE_TEXTO_SIMPLE = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9 .\-]+$/;
+
+/** Identificador de envío generado por el frontend. */
+var RE_SUBMISSION_ID = /^[A-Za-z0-9_\-]+$/;
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -155,6 +289,7 @@ var CONFIG = {
  *
  * Acciones disponibles (parámetro "action"):
  *   • (ninguna)        → Verificación de que el backend está activo.
+ *   • token            → Emite un token temporal de un solo uso.
  *   • disponibilidad   → Devuelve los cupos libres de los 8 grupos.
  *   • inscribir        → Registra una inscripción (respaldo cuando el
  *                        navegador bloquea la lectura de la respuesta POST).
@@ -162,6 +297,10 @@ var CONFIG = {
  * Si se envía el parámetro "callback", la respuesta se devuelve en formato
  * JSONP. Esto permite que una página estática lea el resultado sin depender
  * de la configuración CORS del navegador.
+ *
+ * Ninguna excepción escapa de aquí: cualquier fallo se traduce en una
+ * respuesta JSON controlada, de modo que un error no derriba el servicio
+ * ni afecta a las demás solicitudes.
  *
  * @param {Object} e - Evento de solicitud GET.
  * @returns {TextOutput} Respuesta JSON o JSONP.
@@ -184,6 +323,10 @@ function doGet(e) {
   var callback = callbackCrudo;
 
   try {
+    if (accion === 'token') {
+      return responder_(emitirRespuestaDeToken_(), callback);
+    }
+
     if (accion === 'disponibilidad') {
       return responder_({
         status: 'success',
@@ -193,17 +336,16 @@ function doGet(e) {
     }
 
     if (accion === 'inscribir') {
-      var datosGet = params.data ? JSON.parse(params.data) : params;
-      return responder_(procesarInscripcion_(datosGet), callback);
+      return responder_(procesarInscripcion_(extraerDatosDelRequest_(e)), callback);
     }
 
     return responder_({
       status: 'success',
-      message: 'Backend Lingola — Inglés Básico v3.0 — Activo.'
+      message: 'Backend Lingola — Inglés Básico v4.0 — Activo.'
     }, callback);
 
   } catch (err) {
-    registrarError_('doGet', err);
+    registrarError_('doGet:' + accion, err);
     return responder_(construirRespuestaDeError_(err), callback);
   }
 }
@@ -230,6 +372,32 @@ function doPost(e) {
     registrarError_('doPost', err);
     return responder_(construirRespuestaDeError_(err), '');
   }
+}
+
+/**
+ * Construye la respuesta de la acción "token".
+ * La emisión también está limitada en frecuencia: aunque es una operación
+ * barata (no toca Google Sheets), no debe poder usarse para consumir
+ * ejecuciones del script de forma indefinida.
+ *
+ * @returns {Object} Respuesta con el token y su vigencia en segundos.
+ */
+function emitirRespuestaDeToken_() {
+  var S = CONFIG.seguridad;
+
+  if (!registrarIntento_('tok', S.limiteTokensGlobal, S.ventanaTokensSegundos)) {
+    return {
+      status:  'error',
+      code:    CODIGOS.OCUPADO,
+      message: 'El sistema está recibiendo muchas solicitudes. Inténtalo de nuevo en un minuto.'
+    };
+  }
+
+  return {
+    status:   'success',
+    token:    emitirToken_(),
+    expiraEn: S.tokenTtlSegundos
+  };
 }
 
 /**
@@ -266,20 +434,56 @@ function responder_(objeto, callback) {
 }
 
 /**
+ * Crea un error "controlado": lleva un código explícito y un mensaje escrito
+ * por nosotros, apto para mostrarse tal cual al estudiante.
+ *
+ * Todo lo que NO sea un error controlado se considera un fallo interno y se
+ * sustituye por un mensaje genérico antes de salir del servidor.
+ *
+ * @param {string} codigo - Uno de los valores de CODIGOS.
+ * @param {string} mensaje - Texto pensado para el usuario final.
+ * @returns {Error} Error listo para lanzarse.
+ */
+function errorControlado_(codigo, mensaje) {
+  var err = new Error(mensaje);
+  err.codigoLingola = codigo;
+  return err;
+}
+
+/**
  * Traduce un error interno en una respuesta comprensible para el frontend.
+ *
+ * Regla de seguridad: solo viajan al usuario los mensajes que hemos escrito
+ * nosotros. Los errores de la plataforma (tiempos de espera de Sheets,
+ * excepciones de tipo, cuotas de Google, rutas de archivo) se registran en el
+ * log de ejecuciones y se reemplazan por un texto neutro.
  *
  * @param {Error} err - Error capturado.
  * @returns {Object} Respuesta con status, code y message.
  */
 function construirRespuestaDeError_(err) {
-  var mensaje = err && err.message ? err.message : 'Error desconocido.';
-  var codigo  = (mensaje.indexOf(ERROR_CUPO_LLENO) === 0) ? 'CUPO_LLENO' : 'ERROR';
-
-  if (codigo === 'CUPO_LLENO') {
-    mensaje = mensaje.replace(ERROR_CUPO_LLENO, '').trim();
+  // 1. Error controlado: su mensaje ya es apto para el usuario.
+  if (err && err.codigoLingola) {
+    return { status: 'error', code: err.codigoLingola, message: err.message };
   }
 
-  return { status: 'error', code: codigo, message: mensaje };
+  // 2. Compatibilidad con el marcador de cupo lleno de versiones anteriores.
+  var mensaje = (err && err.message) ? String(err.message) : '';
+  if (mensaje.indexOf(ERROR_CUPO_LLENO) === 0) {
+    return {
+      status:  'error',
+      code:    CODIGOS.CUPO_LLENO,
+      message: mensaje.replace(ERROR_CUPO_LLENO, '').trim()
+    };
+  }
+
+  // 3. Cualquier otra cosa es un fallo interno: no se detalla hacia fuera.
+  return {
+    status:  'error',
+    code:    CODIGOS.ERROR,
+    message: 'No pudimos completar tu inscripción en este momento. ' +
+             'Vuelve a intentarlo en unos minutos o escríbenos por WhatsApp.'
+  };
 }
 
 /**
@@ -306,19 +510,23 @@ function registrarError_(origen, err) {
  * @throws {Error} Si no se pueden extraer datos válidos.
  */
 function extraerDatosDelRequest_(e) {
+  if (!e) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
+  }
+
   // Formato 1: JSON directo en el body.
   // fetch() sin cabeceras personalizadas envía "text/plain", lo que evita
   // la petición preflight de CORS; por eso ambos tipos son válidos.
   if (e.postData && e.postData.contents) {
     var tipo = e.postData.type || '';
     if (tipo.indexOf('application/json') === 0 || tipo.indexOf('text/plain') === 0) {
-      return JSON.parse(e.postData.contents);
+      return interpretarJson_(e.postData.contents);
     }
   }
 
-  // Formato 2: Form-encoded con campo "data"
+  // Formato 2: Form-encoded o query string con campo "data"
   if (e.parameter && e.parameter.data) {
-    return JSON.parse(e.parameter.data);
+    return interpretarJson_(e.parameter.data);
   }
 
   // Formato 3: Parámetros directos (fallback)
@@ -326,88 +534,512 @@ function extraerDatosDelRequest_(e) {
     return e.parameter;
   }
 
-  throw new Error('No se recibieron datos válidos en la solicitud.');
+  throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
 }
 
 /**
- * Normaliza y valida los datos del formulario antes de insertarlos.
+ * Convierte texto en objeto controlando tanto el tamaño como el formato.
  *
- * - Limpia espacios en blanco
- * - Mapea el horario al nombre del grupo
- * - Valida campos obligatorios
+ * El límite de tamaño se aplica ANTES de parsear: así una carga enorme se
+ * rechaza sin consumir tiempo de CPU ni memoria del script.
+ *
+ * @param {string} texto - Contenido recibido.
+ * @returns {Object} Objeto resultante.
+ * @throws {Error} Error controlado si el contenido no es un objeto JSON válido.
+ */
+function interpretarJson_(texto) {
+  var contenido = String(texto === null || texto === undefined ? '' : texto);
+
+  if (contenido.length > CONFIG.limites.payloadMax) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'La solicitud enviada es demasiado grande.');
+  }
+
+  var objeto;
+  try {
+    objeto = JSON.parse(contenido);
+  } catch (err) {
+    // El detalle del parser ("Unexpected token…") no aporta nada al usuario
+    // y describe cómo procesamos la entrada: se queda en el log.
+    registrarError_('interpretarJson', err);
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
+  }
+
+  if (!objeto || typeof objeto !== 'object' || Object.prototype.toString.call(objeto) === '[object Array]') {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
+  }
+
+  return objeto;
+}
+
+/**
+ * Convierte un valor recibido en texto, rechazando lo que no puede serlo.
+ *
+ * Motivo: `(data.nombre || '').trim()` revienta con un TypeError si el campo
+ * llega como número, objeto o array. Aquí esos casos se detectan y se
+ * convierten en un error controlado en lugar de una excepción interna.
+ *
+ * @param {*} valor - Valor tal como llegó en la solicitud.
+ * @returns {string|null} Texto ya recortado, o null si el tipo no es aceptable.
+ */
+function textoDelCampo_(valor) {
+  if (valor === null || valor === undefined) return '';
+
+  var tipo = typeof valor;
+  if (tipo === 'string')  return valor.trim();
+  if (tipo === 'number' && isFinite(valor)) return String(valor).trim();
+  if (tipo === 'boolean') return String(valor).trim();
+
+  return null; // objetos, arrays, funciones: no se aceptan
+}
+
+/**
+ * Determina el nombre de grupo a partir de los campos "grupo" y "horario".
+ *
+ * Solo se aceptan coincidencias EXACTAS contra la configuración. La versión
+ * anterior hacía una búsqueda parcial con indexOf que, ante un horario vacío,
+ * coincidía con la primera clave del mapeo y registraba al estudiante en un
+ * grupo que no había elegido.
+ *
+ * Se usa hasOwnProperty porque un valor como "constructor" o "toString"
+ * encontraría una propiedad heredada del prototipo de Object.
+ *
+ * @param {string} grupo - Nombre de grupo recibido.
+ * @param {string} horario - Rango horario recibido.
+ * @returns {string} Nombre de grupo válido, o cadena vacía si no se identifica.
+ */
+function resolverGrupo_(grupo, horario) {
+  var mapa = CONFIG.mapeoHorarios;
+
+  if (grupo && Object.prototype.hasOwnProperty.call(mapa, grupo)) {
+    return mapa[grupo];
+  }
+  if (horario && Object.prototype.hasOwnProperty.call(mapa, horario)) {
+    return mapa[horario];
+  }
+
+  // El formulario envía el rango ("9:00 AM – 10:30 AM") en el campo horario.
+  for (var i = 0; i < CONFIG.horarios.length; i++) {
+    if (horario && horario === CONFIG.horarios[i].rango) {
+      return CONFIG.horarios[i].nombreGrupo;
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Devuelve el rango horario oficial de un grupo, tomado de la configuración.
+ *
+ * El texto que se escribe en la hoja procede SIEMPRE de aquí y nunca del
+ * cliente: así la columna "Horario seleccionado" no puede contener texto
+ * arbitrario aunque alguien manipule la solicitud.
+ *
+ * @param {string} grupoNombre - Nombre del grupo ya validado.
+ * @returns {string} Rango horario correspondiente.
+ */
+function rangoOficialDelGrupo_(grupoNombre) {
+  for (var i = 0; i < CONFIG.horarios.length; i++) {
+    if (CONFIG.horarios[i].nombreGrupo === grupoNombre) {
+      return CONFIG.horarios[i].rango;
+    }
+  }
+  return '';
+}
+
+/**
+ * Valida y normaliza los datos del formulario antes de insertarlos.
+ *
+ * Comprueba, para cada campo: tipo, presencia, longitud, formato y
+ * pertenencia a la lista de valores permitidos. No da por buena ninguna
+ * validación hecha en el navegador.
+ *
+ * Campos que el servidor decide por su cuenta e ignora del cliente:
+ *   • nivel escrito en la hoja  → CONFIG.nivelFijo
+ *   • horario escrito en la hoja → rango oficial del grupo
+ *   • inicio de clases del correo → CONFIG.marca.inicioClasesPorDefecto
  *
  * @param {Object} data - Datos crudos del formulario.
- * @returns {Object} Datos normalizados con campos: nombre, whatsapp, correo, diaOriginal, diaNormalizado, grupoNombre, horarioOriginal
- * @throws {Error} Si faltan campos obligatorios o el mapeo es inválido.
+ * @returns {Object} Datos normalizados y seguros.
+ * @throws {Error} Error controlado con código DATOS_INVALIDOS.
  */
 function normalizarDatos_(data) {
-  var nombre   = (data.nombre   || '').trim();
-  var whatsapp = (data.whatsapp || '').trim();
-  var correo   = (data.correo || data.email || '').trim();
-  var dias     = (data.dias     || '').trim();
-  var horario  = (data.horario  || '').trim();
-  var grupo    = (data.grupo    || '').trim();
+  var L = CONFIG.limites;
 
-  // ── Validar campos obligatorios ──
-  if (!nombre) {
-    throw new Error('El campo "nombre" es obligatorio.');
-  }
-  if (!dias) {
-    throw new Error('El campo "días" es obligatorio.');
-  }
-  if (!horario && !grupo) {
-    throw new Error('El campo "horario" o "grupo" es obligatorio.');
+  if (!data || typeof data !== 'object' ||
+      Object.prototype.toString.call(data) === '[object Array]') {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
   }
 
-  // ── Normalizar día ──
+  // ── Nombre completo ──
+  var nombre = textoDelCampo_(data.nombre);
+  if (nombre === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El nombre recibido no tiene un formato válido.');
+  }
+  nombre = nombre.replace(/\s+/g, ' ');
+  if (nombre.length < L.nombreMin || nombre.length > L.nombreMax) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'El nombre completo debe tener entre ' + L.nombreMin + ' y ' + L.nombreMax + ' caracteres.');
+  }
+  if (!RE_NOMBRE.test(nombre)) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'El nombre completo solo puede contener letras, espacios, guiones y apóstrofos.');
+  }
+
+  // ── WhatsApp ──
+  var whatsapp = textoDelCampo_(data.whatsapp);
+  if (whatsapp === null || whatsapp.length > L.whatsappMax) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El número de WhatsApp recibido no es válido.');
+  }
+  whatsapp = whatsapp.replace(/\s+/g, ' ');
+  var digitos = whatsapp.replace(/\D/g, '');
+  if (!whatsapp || !RE_WHATSAPP.test(whatsapp) ||
+      digitos.length < L.whatsappDigitosMin || digitos.length > L.whatsappDigitosMax) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'El número de WhatsApp debe tener entre ' + L.whatsappDigitosMin + ' y ' +
+      L.whatsappDigitosMax + ' dígitos.');
+  }
+
+  // ── Correo electrónico ──
+  // Ahora es obligatorio: sin él no hay confirmación posible y la
+  // comprobación de duplicados quedaría desactivada.
+  var correoCrudo = (data.correo === undefined || data.correo === null || data.correo === '')
+    ? data.email
+    : data.correo;
+  var correo = textoDelCampo_(correoCrudo);
+  if (correo === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El correo electrónico recibido no es válido.');
+  }
+  correo = correo.toLowerCase();
+  if (!correo || correo.length > L.correoMax || !RE_CORREO.test(correo)) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El correo electrónico no es válido.');
+  }
+
+  // ── Grupo de días (lista blanca) ──
+  var dias = textoDelCampo_(data.dias);
+  if (dias === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El grupo de días recibido no es válido.');
+  }
+  dias = dias.replace(/\s+/g, ' ');
   var diaNormalizado = dias.toUpperCase();
-  // Verificar que el día existe en la configuración
-  var diaValido = false;
-  for (var i = 0; i < CONFIG.dias.length; i++) {
-    if (CONFIG.dias[i] === diaNormalizado) {
-      diaValido = true;
-      break;
-    }
-  }
-  if (!diaValido) {
-    throw new Error('El grupo de días "' + dias + '" no es válido. Opciones: ' + CONFIG.dias.join(', '));
+  if (CONFIG.dias.indexOf(diaNormalizado) === -1) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'El grupo de días seleccionado no es válido. Vuelve al paso anterior y elige un horario de la lista.');
   }
 
-  // ── Normalizar horario / grupo ──
-  // Prioridad: usar el campo "grupo" si viene; si no, buscar en el mapeo del horario
-  var grupoNombre = '';
-
-  if (grupo && CONFIG.mapeoHorarios[grupo]) {
-    grupoNombre = CONFIG.mapeoHorarios[grupo];
-  } else if (horario && CONFIG.mapeoHorarios[horario]) {
-    grupoNombre = CONFIG.mapeoHorarios[horario];
-  } else {
-    // Intentar búsqueda parcial: si el horario contiene el nombre de un grupo conocido
-    for (var clave in CONFIG.mapeoHorarios) {
-      if (horario.indexOf(CONFIG.mapeoHorarios[clave]) !== -1 || CONFIG.mapeoHorarios[clave].indexOf(horario) !== -1) {
-        grupoNombre = CONFIG.mapeoHorarios[clave];
-        break;
-      }
-    }
+  // ── Horario / grupo (lista blanca) ──
+  var horario = textoDelCampo_(data.horario);
+  var grupo   = textoDelCampo_(data.grupo);
+  if (horario === null || grupo === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El horario recibido no es válido.');
   }
-
+  var grupoNombre = resolverGrupo_(grupo.replace(/\s+/g, ' '), horario.replace(/\s+/g, ' '));
   if (!grupoNombre) {
-    throw new Error('No se pudo identificar el grupo horario. Valor recibido: horario="' + horario + '", grupo="' + grupo + '"');
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'El horario seleccionado no es válido. Vuelve al paso anterior y elige un horario de la lista.');
+  }
+
+  // ── Aceptación de términos ──
+  // Este endpoint ES la aceptación del contrato: sin ella no hay inscripción.
+  if (data.aceptoTerminos !== true && data.aceptoTerminos !== 'true') {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS,
+      'Debes aceptar los términos y condiciones para completar tu inscripción.');
+  }
+
+  // ── Identificador de envío (idempotencia) ──
+  var submissionId = textoDelCampo_(data.submissionId);
+  if (submissionId === null) submissionId = '';
+  if (submissionId && (submissionId.length > L.submissionIdMax || !RE_SUBMISSION_ID.test(submissionId))) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El identificador de envío recibido no es válido.');
+  }
+
+  // ── Token temporal ──
+  var token = textoDelCampo_(data.token);
+  if (token === null) token = '';
+
+  // ── Nivel: solo se usa en los correos; si no es un texto neutro, se
+  //    sustituye por el valor de la configuración. Nunca llega a la hoja. ──
+  var nivel = textoDelCampo_(data.nivel);
+  nivel = (nivel === null) ? '' : nivel.replace(/\s+/g, ' ');
+  if (!nivel || nivel.length > L.nivelMax || !RE_TEXTO_SIMPLE.test(nivel)) {
+    nivel = CONFIG.nivelFijo;
   }
 
   return {
     nombre:          nombre,
     whatsapp:        whatsapp,
+    whatsappDigitos: digitos,
     correo:          correo,
-    diaOriginal:     dias,
+    diaOriginal:     dias,            // Ya validado contra CONFIG.dias
     diaNormalizado:  diaNormalizado,
     grupoNombre:     grupoNombre,
-    horarioOriginal: horario,
-    nivel:           (data.nivel || '').trim() || CONFIG.nivelFijo,
-    inicioClases:    (data.inicioClases || '').trim() || CONFIG.marca.inicioClasesPorDefecto,
-    aceptoTerminos:  data.aceptoTerminos === true || data.aceptoTerminos === 'true',
-    submissionId:    (data.submissionId || '').toString().trim()
+    horarioOriginal: rangoOficialDelGrupo_(grupoNombre), // Decidido por el servidor
+    nivel:           nivel,
+    inicioClases:    CONFIG.marca.inicioClasesPorDefecto, // Decidido por el servidor
+    aceptoTerminos:  true,
+    submissionId:    submissionId,
+    token:           token
   };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECCIÓN 3A: SEGURIDAD — TOKEN TEMPORAL, FRECUENCIA Y SANEADO
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Caché en memoria del secreto durante una misma ejecución. */
+var _secretoToken = null;
+
+/**
+ * Devuelve la clave secreta con la que se firman los tokens.
+ *
+ * Vive en ScriptProperties, del lado del servidor: nunca aparece en el
+ * frontend ni viaja al navegador. Se genera sola la primera vez.
+ *
+ * No se usa LockService aquí a propósito: esta función puede ejecutarse antes
+ * de la sección crítica y un bloqueo anidado complicaría el flujo. La única
+ * carrera posible ocurre en la primerísima solicitud de la vida del script;
+ * se resuelve releyendo la propiedad para adoptar el valor que ganó.
+ *
+ * @returns {string} Secreto HMAC.
+ */
+function obtenerSecretoToken_() {
+  if (_secretoToken) return _secretoToken;
+
+  var propiedades = PropertiesService.getScriptProperties();
+  var secreto = propiedades.getProperty(CLAVES.secretoToken);
+
+  if (!secreto) {
+    secreto = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+    propiedades.setProperty(CLAVES.secretoToken, secreto);
+    secreto = propiedades.getProperty(CLAVES.secretoToken) || secreto;
+  }
+
+  _secretoToken = secreto;
+  return secreto;
+}
+
+/**
+ * Firma la parte pública de un token.
+ *
+ * @param {string} cuerpo - Carga útil ya codificada en base64 web-safe.
+ * @returns {string} Firma HMAC-SHA256 en base64 web-safe.
+ */
+function firmarToken_(cuerpo) {
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeHmacSha256Signature(cuerpo, obtenerSecretoToken_())
+  );
+}
+
+/**
+ * Emite un token temporal.
+ *
+ * Formato: base64({ n: nonce, t: milisegundos }) + "." + firma
+ *
+ * Es autocontenido: no hay que guardar nada al emitirlo, así que emitir
+ * tokens no consume almacenamiento aunque se pidan miles. Solo se guarda una
+ * marca cuando el token se CONSUME, para impedir que se reutilice.
+ *
+ * @returns {string} Token listo para el frontend.
+ */
+function emitirToken_() {
+  var cuerpo = Utilities.base64EncodeWebSafe(JSON.stringify({
+    n: Utilities.getUuid(),
+    t: new Date().getTime()
+  }));
+
+  return cuerpo + '.' + firmarToken_(cuerpo);
+}
+
+/**
+ * Comprueba un token: firma, antigüedad y que no se haya usado antes.
+ *
+ * @param {string} token - Token recibido del frontend.
+ * @returns {Object} { nonce: string } si es válido.
+ * @throws {Error} Error controlado TOKEN_INVALIDO o TOKEN_EXPIRADO.
+ */
+function verificarToken_(token) {
+  var invalido = errorControlado_(CODIGOS.TOKEN_INVALIDO,
+    'Tu sesión del formulario ya no es válida. Recarga la página e inténtalo de nuevo.');
+
+  if (!token || typeof token !== 'string' || token.length > CONFIG.limites.tokenMax) {
+    throw invalido;
+  }
+
+  var partes = token.split('.');
+  if (partes.length !== 2 || !partes[0] || !partes[1]) throw invalido;
+
+  // Sin el secreto no se puede fabricar una firma válida.
+  if (firmarToken_(partes[0]) !== partes[1]) throw invalido;
+
+  var carga;
+  try {
+    carga = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(partes[0])).getDataAsString());
+  } catch (err) {
+    registrarError_('verificarToken', err);
+    throw invalido;
+  }
+
+  var nonce = String(carga && carga.n ? carga.n : '');
+  var emitido = Number(carga && carga.t ? carga.t : 0);
+  if (!nonce || !emitido) throw invalido;
+
+  var edad = new Date().getTime() - emitido;
+  if (edad < -60000 || edad > CONFIG.seguridad.tokenTtlSegundos * 1000) {
+    throw errorControlado_(CODIGOS.TOKEN_EXPIRADO,
+      'El formulario estuvo abierto demasiado tiempo. Recarga la página e inténtalo de nuevo.');
+  }
+
+  // Un solo uso: si ya se consumió, no vale una segunda vez.
+  try {
+    if (CacheService.getScriptCache().get(CLAVES.token + nonce)) throw invalido;
+  } catch (err) {
+    if (err === invalido) throw err;
+    // Si la caché falla, se acepta el token: la firma y la caducidad ya
+    // acotan el riesgo, y la idempotencia impide registros repetidos.
+    registrarError_('verificarToken:cache', err);
+  }
+
+  return { nonce: nonce };
+}
+
+/**
+ * Marca un token como usado.
+ *
+ * Se llama solo cuando la inscripción llega a un desenlace definitivo
+ * (registrada o detectada como duplicada). Ante un fallo temporal el token
+ * sigue siendo válido, de modo que el reintento automático funciona.
+ *
+ * @param {string} nonce - Identificador único del token.
+ */
+function consumirToken_(nonce) {
+  if (!nonce) return;
+  try {
+    CacheService.getScriptCache().put(
+      CLAVES.token + nonce, '1', CONFIG.seguridad.tokenTtlSegundos
+    );
+  } catch (err) {
+    registrarError_('consumirToken', err);
+  }
+}
+
+/**
+ * Huella corta y no reversible de un dato personal.
+ *
+ * Se usa para construir las claves de los contadores de frecuencia sin
+ * guardar correos ni teléfonos dentro de CacheService.
+ *
+ * @param {string} texto - Dato de origen.
+ * @returns {string} 16 caracteres hexadecimales.
+ */
+function huella_(texto) {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, String(texto), Utilities.Charset.UTF_8
+  );
+
+  var hex = '';
+  for (var i = 0; i < 8; i++) {
+    hex += ('0' + (((bytes[i] % 256) + 256) % 256).toString(16)).slice(-2);
+  }
+  return hex;
+}
+
+/**
+ * Contador de frecuencia por ventana fija sobre CacheService.
+ *
+ * Limitación conocida: CacheService no ofrece incremento atómico, así que
+ * varias solicitudes simultáneas pueden leer el mismo valor y contarse como
+ * una sola. El efecto es deliberadamente benigno:
+ *   • una ráfaga legítima (100 personas a la vez) se subcuenta → no se bloquea;
+ *   • un abuso secuencial (un script enviando en bucle) se cuenta con
+ *     exactitud → sí se bloquea, que es el caso que interesa frenar.
+ *
+ * @param {string} etiqueta - Identificador del contador.
+ * @param {number} maximo - Solicitudes permitidas en la ventana.
+ * @param {number} ventanaSegundos - Duración de la ventana.
+ * @returns {boolean} true si la solicitud está dentro del límite.
+ */
+function registrarIntento_(etiqueta, maximo, ventanaSegundos) {
+  if (!maximo || maximo <= 0) return true;
+
+  try {
+    var cache   = CacheService.getScriptCache();
+    var ventana = Math.floor(new Date().getTime() / (ventanaSegundos * 1000));
+    var clave   = CLAVES.rate + etiqueta + '_' + ventana;
+
+    var actual = parseInt(cache.get(clave) || '0', 10);
+    if (isNaN(actual)) actual = 0;
+    actual++;
+
+    cache.put(clave, String(actual), ventanaSegundos * 2);
+    return actual <= maximo;
+
+  } catch (err) {
+    // Un fallo del limitador nunca debe impedir una inscripción legítima.
+    registrarError_('registrarIntento', err);
+    return true;
+  }
+}
+
+/**
+ * Aplica los límites de frecuencia a una inscripción.
+ *
+ * @param {Object} datos - Datos ya normalizados.
+ * @throws {Error} Error controlado OCUPADO o DEMASIADAS_SOLICITUDES.
+ */
+function aplicarControlDeTrafico_(datos) {
+  var S = CONFIG.seguridad;
+
+  // 1. Techo global: protege el servicio completo.
+  if (!registrarIntento_('glob', S.limiteGlobalIntentos, S.ventanaGlobalSegundos)) {
+    throw errorControlado_(CODIGOS.OCUPADO,
+      'El sistema está recibiendo un número inusual de solicitudes. Inténtalo de nuevo en un minuto.');
+  }
+
+  // 2. Por correo: impide que una misma persona inunde el formulario.
+  if (!registrarIntento_('c' + huella_(datos.correo), S.limitePorCorreo, S.ventanaPorCorreoSegundos)) {
+    throw errorControlado_(CODIGOS.DEMASIADAS_SOLICITUDES,
+      'Hemos recibido varias solicitudes seguidas con este correo. ' +
+      'Espera unos minutos antes de volver a intentarlo o escríbenos por WhatsApp.');
+  }
+
+  // 3. Por WhatsApp: cubre el caso de cambiar el correo en cada envío.
+  if (datos.whatsappDigitos &&
+      !registrarIntento_('w' + huella_(datos.whatsappDigitos), S.limitePorWhatsapp, S.ventanaPorWhatsappSegundos)) {
+    throw errorControlado_(CODIGOS.DEMASIADAS_SOLICITUDES,
+      'Hemos recibido varias solicitudes seguidas con este número de WhatsApp. ' +
+      'Espera unos minutos antes de volver a intentarlo o escríbenos por WhatsApp.');
+  }
+}
+
+/**
+ * Prepara un texto para escribirlo en una celda de Google Sheets.
+ *
+ * Dos protecciones:
+ *   1. Retira caracteres de control y saltos de línea.
+ *   2. Antepone un apóstrofo cuando el texto empieza por =, +, - o @, que
+ *      son los caracteres que hacen que Sheets interprete la celda como
+ *      fórmula. Esto corrige además un problema real ya existente: los
+ *      números escritos como "+1 809-555-5555" se evaluaban como operación.
+ *
+ * @param {string} valor - Texto de origen.
+ * @param {number} maxLongitud - Recorte máximo.
+ * @returns {string} Texto seguro para la hoja.
+ */
+function sanitizarCelda_(valor, maxLongitud) {
+  var texto = String(valor === null || valor === undefined ? '' : valor)
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (maxLongitud && texto.length > maxLongitud) {
+    texto = texto.substring(0, maxLongitud);
+  }
+
+  if (/^[=+\-@]/.test(texto)) {
+    texto = "'" + texto;
+  }
+
+  return texto;
 }
 
 /**
@@ -437,119 +1069,173 @@ function esFilaEncabezado_(valor) {
 }
 
 /**
- * Busca y localiza la sección exacta dentro de la hoja donde insertar un estudiante.
+ * Interpreta el contenido completo de la hoja en UNA sola pasada.
  *
- * Escanea la columna A para encontrar:
- *   1. El encabezado del día (ej. "LUNES Y JUEVES")
- *   2. El nombre del grupo de horario dentro de ese día (ej. "Primer grupo de la mañana")
- *   3. La fila de cabecera de columnas (Fecha, Nivel, Nombre...)
- *   4. El rango de datos de estudiantes
- *   5. El siguiente encabezado (para calcular el buffer)
+ * Ésta es la pieza central de la mejora de concurrencia. Antes, registrar un
+ * estudiante requería tres lecturas separadas de Google Sheets, todas dentro
+ * del bloqueo:
+ *   • encontrarSeccion_       → columna A completa
+ *   • inspeccionarSeccion_    → rango de la sección
+ *   • encontrarFilaInsercion_ → rango de la sección otra vez
  *
- * @param {Sheet} sheet - La hoja de Google Sheets.
- * @param {string} diaNormalizado - Día en mayúsculas (ej. "LUNES Y JUEVES").
- * @param {string} grupoNombre - Nombre del grupo (ej. "Primer grupo de la mañana").
- * @returns {Object} { filaCabeceraColumnas, filaInicioEstudiantes, filaProximoEncabezado }
- * @throws {Error} Si no se encuentra la sección.
+ * Cada llamada a SpreadsheetApp es un viaje de ida y vuelta a los servidores
+ * de Google. Al reducirlas a una, la sección crítica pasa de segundos a
+ * décimas de segundo, que es lo que permite que la cola de 100 solicitudes
+ * avance en lugar de agotar la espera del bloqueo.
+ *
+ * De cada bloque (día + horario) se obtiene:
+ *   • filaCabecera / filaInicio / filaProximoEncabezado → dónde empieza y acaba
+ *   • primeraLibre  → primera fila vacía disponible
+ *   • inscritos     → cuántos estudiantes hay (control de cupos)
+ *   • correos y whatsapps → deduplicación
+ *
+ * @param {Array<Array>} valores - Matriz de valores leída de la hoja.
+ * @param {boolean} conDatos - true si la matriz incluye las columnas de datos.
+ * @returns {Object} { secciones: Object, orden: Array<string> }
  */
-function encontrarSeccion_(sheet, diaNormalizado, grupoNombre) {
-  var ultimaFila = sheet.getMaxRows();
-  var valores = sheet.getRange(1, 1, ultimaFila, 1).getValues();
+function analizarHoja_(valores, conDatos) {
+  var secciones = {};
+  var orden     = [];
 
-  var estado = 'buscando_dia';
-  var filaCabeceraColumnas = -1;
-  var filaInicioEstudiantes = -1;
-  var filaProximoEncabezado = -1;
+  var diaActual   = '';
+  var grupoActual = '';
+  var actual      = null;
 
-  for (var i = 0; i < valores.length; i++) {
-    var valorCelda = String(valores[i][0]).trim();
-    if (!valorCelda && estado !== 'contando_estudiantes') continue;
-
-    switch (estado) {
-
-      // ── Estado 1: Buscando el encabezado del día ──
-      case 'buscando_dia':
-        if (valorCelda.toUpperCase() === diaNormalizado) {
-          estado = 'buscando_grupo';
-        }
-        break;
-
-      // ── Estado 2: Dentro del día, buscando el grupo de horario ──
-      case 'buscando_grupo':
-        // Si encontramos otro encabezado de día, el grupo no existía
-        if (esFilaEncabezado_(valorCelda).esDia) {
-          throw new Error('No se encontró el grupo "' + grupoNombre + '" dentro de "' + diaNormalizado + '".');
-        }
-        if (valorCelda === grupoNombre) {
-          estado = 'buscando_cabecera';
-        }
-        break;
-
-      // ── Estado 3: Grupo encontrado, buscando la fila de cabecera de columnas ──
-      case 'buscando_cabecera':
-        if (valorCelda === CONFIG.columnas[0]) {
-          filaCabeceraColumnas = i + 1; // +1 porque el array es 0-indexed
-          filaInicioEstudiantes = i + 2;
-          estado = 'contando_estudiantes';
-        }
-        break;
-
-      // ── Estado 4: Contando filas de estudiantes hasta encontrar el siguiente encabezado ──
-      case 'contando_estudiantes':
-        if (valorCelda) {
-          var tipo = esFilaEncabezado_(valorCelda);
-          if (tipo.esDia || tipo.esHorario) {
-            filaProximoEncabezado = i + 1; // +1 por 0-index
-            // Hemos terminado la búsqueda
-            i = valores.length; // Salir del bucle
-            break;
-          }
-        }
-        break;
+  /** Cierra la sección en curso fijando dónde termina su bloque de filas. */
+  function cerrarSeccion(filaLimite) {
+    if (actual) {
+      actual.filaProximoEncabezado = filaLimite;
+      actual = null;
     }
   }
 
-  // ── Validaciones de resultado ──
-  if (filaCabeceraColumnas === -1) {
-    throw new Error('No se encontró la sección para: ' + diaNormalizado + ' / ' + grupoNombre + '. ¿Ejecutaste setup()?');
+  for (var i = 0; i < valores.length; i++) {
+    var fila  = i + 1; // Las filas de Sheets empiezan en 1
+    var bruto = valores[i][0];
+    var celda = String(bruto === null || bruto === undefined ? '' : bruto).trim();
+
+    // ── Fila vacía: candidata a recibir el próximo estudiante ──
+    if (!celda) {
+      if (actual && !actual.primeraLibre) actual.primeraLibre = fila;
+      continue;
+    }
+
+    var tipo = esFilaEncabezado_(celda);
+
+    // ── Encabezado de día ──
+    if (tipo.esDia) {
+      cerrarSeccion(fila);
+      diaActual   = celda.toUpperCase();
+      grupoActual = '';
+      continue;
+    }
+
+    // ── Encabezado de horario ──
+    if (tipo.esHorario) {
+      cerrarSeccion(fila);
+      grupoActual = celda;
+      continue;
+    }
+
+    // ── Cabecera de columnas: a partir de aquí empiezan los estudiantes ──
+    if (celda === CONFIG.columnas[0]) {
+      cerrarSeccion(fila);
+
+      if (diaActual && grupoActual) {
+        var clave = claveGrupo_(diaActual, grupoActual);
+        actual = {
+          clave:                 clave,
+          dia:                   diaActual,
+          grupo:                 grupoActual,
+          filaCabecera:          fila,
+          filaInicio:            fila + 1,
+          filaProximoEncabezado: 0,
+          primeraLibre:          0,
+          inscritos:             0,
+          correos:               [],
+          whatsapps:             []
+        };
+        secciones[clave] = actual;
+        orden.push(clave);
+      }
+      continue;
+    }
+
+    // ── Fila de estudiante ──
+    // La fila del rango horario ("9:00 AM – 10:30 AM") no llega hasta aquí:
+    // aparece antes de la cabecera de columnas, cuando "actual" aún es null.
+    if (actual) {
+      actual.inscritos++;
+
+      if (conDatos) {
+        var correo = String(valores[i][4] === null || valores[i][4] === undefined ? '' : valores[i][4])
+          .trim().toLowerCase();
+        if (correo) actual.correos.push(correo);
+
+        var whats = soloDigitos_(valores[i][3]);
+        if (whats) actual.whatsapps.push(whats);
+      }
+    }
   }
 
-  // Si no se encontró un próximo encabezado, usar la última fila + 1
-  if (filaProximoEncabezado === -1) {
-    filaProximoEncabezado = ultimaFila + 1;
-  }
+  cerrarSeccion(valores.length + 1);
 
-  return {
-    filaCabeceraColumnas:   filaCabeceraColumnas,
-    filaInicioEstudiantes:  filaInicioEstudiantes,
-    filaProximoEncabezado:  filaProximoEncabezado
-  };
+  return { secciones: secciones, orden: orden };
 }
 
 /**
- * Encuentra la fila exacta donde insertar el nuevo estudiante.
- * Busca la primera fila vacía después del último estudiante registrado en el bloque.
+ * Lee la hoja y devuelve su análisis completo.
+ *
+ * Se lee hasta getMaxRows() y NO con getDataRange(). Es deliberado:
+ * getDataRange() recorta la hoja en la última fila que contiene algo, de modo
+ * que el último bloque parecería no tener ni una fila libre. El efecto
+ * medido era que cada inscripción en el último grupo obligaba a insertar
+ * filas —la operación más costosa— dentro del bloqueo.
+ *
+ * Son dos llamadas a la API (getMaxRows + getValues), las mismas que
+ * requiere getDataRange, y el volumen extra son unas decenas de filas vacías.
  *
  * @param {Sheet} sheet - La hoja de Google Sheets.
- * @param {number} filaInicio - Primera fila donde pueden existir datos de estudiantes.
- * @param {number} filaProximoEncabezado - Fila del siguiente encabezado o fin de la hoja.
- * @returns {number} Número de fila (1-indexed) donde se insertará el nuevo registro.
+ * @param {boolean} conDatos - true para incluir correos y teléfonos.
+ * @returns {Object} Resultado de analizarHoja_.
  */
-function encontrarFilaInsercion_(sheet, filaInicio, filaProximoEncabezado) {
-  var rangoFilas = filaProximoEncabezado - filaInicio;
-  if (rangoFilas <= 0) return filaInicio;
+function leerSnapshot_(sheet, conDatos) {
+  var totalFilas = sheet.getMaxRows();
 
-  var valores = sheet.getRange(filaInicio, 1, rangoFilas, 1).getValues();
+  // La disponibilidad solo necesita la columna A para contar inscritos; pedir
+  // las siete columnas transferiría siete veces más datos sin usarlos. El
+  // camino de registro sí las necesita todas, para deduplicar por correo.
+  var columnas = conDatos ? CONFIG.columnas.length : 1;
 
-  // Buscar la primera fila vacía empezando desde el inicio del bloque
-  for (var i = 0; i < valores.length; i++) {
-    if (String(valores[i][0]).trim() === '') {
-      return filaInicio + i;
-    }
+  var valores = sheet.getRange(1, 1, totalFilas, columnas).getValues();
+
+  var analisis = analizarHoja_(valores, Boolean(conDatos));
+
+  // Se conserva para que garantizarEspacioBuffer_ no tenga que volver a
+  // preguntar por el tamaño de la hoja: una llamada menos dentro del bloqueo.
+  analisis.totalFilas = totalFilas;
+
+  return analisis;
+}
+
+/**
+ * Determina la fila exacta donde debe escribirse el nuevo estudiante.
+ *
+ * Reproduce el criterio anterior (primera fila vacía del bloque; si no hay
+ * ninguna, justo donde termina el bloque) pero sin volver a leer la hoja:
+ * toda la información ya está en el análisis.
+ *
+ * @param {Object} seccion - Sección obtenida de analizarHoja_.
+ * @returns {number} Número de fila (1-indexed).
+ */
+function filaDeInsercion_(seccion) {
+  if (seccion.primeraLibre &&
+      seccion.primeraLibre >= seccion.filaInicio &&
+      seccion.primeraLibre < seccion.filaProximoEncabezado) {
+    return seccion.primeraLibre;
   }
 
-  // Si todas las filas tienen datos, insertar al final del bloque
-  return filaInicio + valores.length;
+  return seccion.filaProximoEncabezado;
 }
 
 /**
@@ -562,13 +1248,17 @@ function encontrarFilaInsercion_(sheet, filaInicio, filaProximoEncabezado) {
  * @param {number} filaProximoEncabezado - Fila del siguiente encabezado.
  * @returns {number} Nuevo valor de filaProximoEncabezado (puede cambiar si se insertaron filas).
  */
-function garantizarEspacioBuffer_(sheet, filaInsercion, filaProximoEncabezado) {
+function garantizarEspacioBuffer_(sheet, filaInsercion, filaProximoEncabezado, totalFilas) {
   // Calcular cuántas filas vacías quedan entre la inserción y el siguiente encabezado
   // Necesitamos: la fila de inserción + (buffer mínimo) < filaProximoEncabezado
   var espacioNecesario = CONFIG.filasSeparacion + 1; // +1 por la fila del propio estudiante
   var espacioDisponible = filaProximoEncabezado - filaInsercion;
 
-  if (espacioDisponible < espacioNecesario && filaProximoEncabezado <= sheet.getMaxRows()) {
+  // El tamaño de la hoja llega ya calculado desde leerSnapshot_; solo se
+  // consulta a la API si quien llama no lo aporta.
+  var filasDeLaHoja = totalFilas || sheet.getMaxRows();
+
+  if (espacioDisponible < espacioNecesario && filaProximoEncabezado <= filasDeLaHoja) {
     // Calcular cuántas filas faltan
     var filasAInsertar = espacioNecesario - espacioDisponible;
 
@@ -583,8 +1273,8 @@ function garantizarEspacioBuffer_(sheet, filaInsercion, filaProximoEncabezado) {
     );
 
     // Paso 1: Eliminar todo el formato heredado
-    rangoNuevasFilas.clearFormat();
-    rangoNuevasFilas.clearContent();
+    // (clear() borra contenido y formato en una sola llamada a la API)
+    rangoNuevasFilas.clear();
 
     // Paso 2: Aplicar formato neutro explícito
     rangoNuevasFilas
@@ -658,78 +1348,22 @@ function claveGrupo_(diaNormalizado, grupoNombre) {
 }
 
 /**
- * Recorre UNA sola vez la columna A y cuenta los estudiantes inscritos
- * en cada combinación de días + horario.
+ * Construye la lista de disponibilidad a partir de un análisis de la hoja.
  *
- * Una fila cuenta como estudiante cuando:
- *   • Está después de la cabecera de columnas de un bloque.
- *   • Tiene contenido en la columna A (la fecha de inscripción).
- *   • No es un encabezado de día ni de horario.
- *
- * @param {Sheet} sheet - La hoja de Google Sheets.
- * @returns {Object} Mapa { "DÍA||Grupo": cantidadDeInscritos }.
- */
-function contarInscritosPorGrupo_(sheet) {
-  var valores = sheet.getRange(1, 1, sheet.getMaxRows(), 1).getValues();
-  var conteos = {};
-
-  var diaActual   = '';
-  var grupoActual = '';
-  var contando    = false;
-
-  for (var i = 0; i < valores.length; i++) {
-    var celda = String(valores[i][0]).trim();
-    if (!celda) continue;
-
-    var tipo = esFilaEncabezado_(celda);
-
-    if (tipo.esDia) {
-      diaActual   = celda.toUpperCase();
-      grupoActual = '';
-      contando    = false;
-      continue;
-    }
-
-    if (tipo.esHorario) {
-      grupoActual = celda;
-      contando    = false;
-      continue;
-    }
-
-    // Cabecera de columnas: a partir de aquí empiezan los estudiantes.
-    if (celda === CONFIG.columnas[0]) {
-      contando = Boolean(diaActual && grupoActual);
-      if (contando) {
-        var claveNueva = claveGrupo_(diaActual, grupoActual);
-        if (conteos[claveNueva] === undefined) conteos[claveNueva] = 0;
-      }
-      continue;
-    }
-
-    if (contando) {
-      conteos[claveGrupo_(diaActual, grupoActual)]++;
-    }
-  }
-
-  return conteos;
-}
-
-/**
- * Devuelve el estado de cupos de los 8 grupos (2 días × 4 horarios).
- *
+ * @param {Object} snapshot - Resultado de leerSnapshot_.
  * @returns {Array<Object>} Lista con dias, grupo, rango, inscritos,
  *                          disponibles, limite y lleno.
  */
-function obtenerDisponibilidad_() {
-  var sheet = obtenerHoja_();
-  var conteos = contarInscritosPorGrupo_(sheet);
+function construirDisponibilidad_(snapshot) {
   var resultado = [];
 
   for (var d = 0; d < CONFIG.dias.length; d++) {
     for (var h = 0; h < CONFIG.horarios.length; h++) {
       var dia     = CONFIG.dias[d];
       var horario = CONFIG.horarios[h];
-      var inscritos = conteos[claveGrupo_(dia, horario.nombreGrupo)] || 0;
+
+      var seccion   = snapshot.secciones[claveGrupo_(dia, horario.nombreGrupo)];
+      var inscritos = seccion ? seccion.inscritos : 0;
       var disponibles = Math.max(0, CONFIG.limiteCupos - inscritos);
 
       resultado.push({
@@ -748,37 +1382,121 @@ function obtenerDisponibilidad_() {
 }
 
 /**
- * Cuenta los estudiantes de UNA sección concreta y recoge sus correos.
- * Se usa dentro del bloqueo de concurrencia, justo antes de insertar.
+ * Devuelve el estado de cupos de los 8 grupos (2 días × 4 horarios).
  *
- * @param {Sheet} sheet - La hoja.
- * @param {Object} seccion - Resultado de encontrarSeccion_.
- * @returns {Object} { inscritos: number, correos: Array<string> }
+ * La respuesta se sirve desde CacheService durante unos segundos. Motivo:
+ * esta consulta la lanza CADA visitante al abrir el formulario, y sin caché
+ * cien visitantes provocaban cien lecturas completas de la hoja y consumían
+ * cien ejecuciones del script antes siquiera de inscribirse.
+ *
+ * La caché se invalida en cuanto se registra a alguien, así que el desfase
+ * máximo es de CONFIG.cache.disponibilidadSegundos. El recuento definitivo
+ * se hace igualmente dentro del bloqueo al inscribir, de modo que un dato
+ * ligeramente antiguo nunca puede provocar un sobrecupo.
+ *
+ * @returns {Array<Object>} Estado de cupos de los 8 grupos.
  */
-function inspeccionarSeccion_(sheet, seccion) {
-  var totalFilas = seccion.filaProximoEncabezado - seccion.filaInicioEstudiantes;
-  if (totalFilas <= 0) {
-    return { inscritos: 0, correos: [] };
+function obtenerDisponibilidad_() {
+  var cache = null;
+
+  try {
+    cache = CacheService.getScriptCache();
+    var guardado = cache.get(CLAVES.disponibilidad);
+    if (guardado) return JSON.parse(guardado);
+  } catch (err) {
+    registrarError_('obtenerDisponibilidad:cache', err);
   }
 
-  var datos = sheet.getRange(
-    seccion.filaInicioEstudiantes, 1, totalFilas, CONFIG.columnas.length
-  ).getValues();
+  var resultado = construirDisponibilidad_(leerSnapshot_(obtenerHoja_(), false));
 
-  var inscritos = 0;
-  var correos = [];
-
-  for (var i = 0; i < datos.length; i++) {
-    var primeraColumna = String(datos[i][0]).trim();
-    if (!primeraColumna) continue;
-    if (esFilaEncabezado_(primeraColumna).esDia) break;
-    if (esFilaEncabezado_(primeraColumna).esHorario) break;
-
-    inscritos++;
-    correos.push(String(datos[i][4] || '').trim().toLowerCase());
+  if (cache) {
+    try {
+      cache.put(CLAVES.disponibilidad, JSON.stringify(resultado), CONFIG.cache.disponibilidadSegundos);
+    } catch (err) {
+      registrarError_('obtenerDisponibilidad:guardar', err);
+    }
   }
 
-  return { inscritos: inscritos, correos: correos };
+  return resultado;
+}
+
+/** Descarta la disponibilidad cacheada tras registrar a un estudiante. */
+function invalidarDisponibilidad_() {
+  try {
+    CacheService.getScriptCache().remove(CLAVES.disponibilidad);
+  } catch (err) {
+    registrarError_('invalidarDisponibilidad', err);
+  }
+}
+
+/**
+ * Busca si el estudiante ya está inscrito.
+ *
+ * Con CONFIG.duplicados.alcance = 'global' se revisan los ocho grupos: así
+ * una misma persona no puede ocupar varios cupos. Con 'grupo' se conserva el
+ * comportamiento anterior, que solo miraba dentro del grupo elegido.
+ *
+ * Se ejecuta DENTRO del bloqueo y sobre el mismo análisis que decide el
+ * cupo, por lo que dos solicitudes simultáneas de la misma persona no pueden
+ * pasar ambas la comprobación.
+ *
+ * @param {Object} snapshot - Análisis de la hoja.
+ * @param {Object} seccion - Sección elegida por el estudiante.
+ * @param {Object} datos - Datos normalizados.
+ * @returns {Object|null} { campo, dias, grupo } si hay duplicado.
+ */
+function buscarDuplicado_(snapshot, seccion, datos) {
+  var claves = (CONFIG.duplicados.alcance === 'global')
+    ? snapshot.orden
+    : [seccion.clave];
+
+  for (var i = 0; i < claves.length; i++) {
+    var s = snapshot.secciones[claves[i]];
+    if (!s) continue;
+
+    if (datos.correo && s.correos.indexOf(datos.correo) !== -1) {
+      return { campo: 'correo', dias: s.dia, grupo: s.grupo };
+    }
+
+    if (CONFIG.duplicados.porWhatsapp && datos.whatsappDigitos &&
+        s.whatsapps.indexOf(datos.whatsappDigitos) !== -1) {
+      return { campo: 'whatsapp', dias: s.dia, grupo: s.grupo };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Obtiene el documento de Google Sheets con el que trabaja el script.
+ *
+ * Admite las dos formas de crear el proyecto:
+ *
+ *   1. VINCULADO (recomendado): el proyecto se abre desde la propia hoja con
+ *      Extensiones › Apps Script. getActiveSpreadsheet() devuelve el documento.
+ *
+ *   2. INDEPENDIENTE: el proyecto se crea suelto en script.google.com. En ese
+ *      caso getActiveSpreadsheet() devuelve null y TODO falla con un error
+ *      confuso. Para ese escenario basta con guardar el ID del documento en
+ *      las propiedades del script:
+ *
+ *        PropertiesService.getScriptProperties()
+ *          .setProperty('LINGOLA_SPREADSHEET_ID', '<id de la hoja>');
+ *
+ *      El ID es el tramo largo de la URL, entre /d/ y /edit.
+ *
+ * @returns {Spreadsheet} Documento de trabajo.
+ */
+function obtenerLibro_() {
+  var id = PropertiesService.getScriptProperties().getProperty('LINGOLA_SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+
+  var activo = SpreadsheetApp.getActiveSpreadsheet();
+  if (activo) return activo;
+
+  throw errorControlado_(CODIGOS.ERROR,
+    'El servicio de inscripciones no está disponible en este momento. ' +
+    'Escríbenos por WhatsApp y completamos tu inscripción.');
 }
 
 /**
@@ -787,8 +1505,7 @@ function inspeccionarSeccion_(sheet, seccion) {
  * @returns {Sheet} La hoja de trabajo.
  */
 function obtenerHoja_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(CONFIG.hojaNombre);
+  var sheet = obtenerLibro_().getSheetByName(CONFIG.hojaNombre);
 
   if (!sheet) {
     throw new Error('La hoja "' + CONFIG.hojaNombre + '" no existe. Ejecuta la función setup() primero.');
@@ -820,113 +1537,204 @@ function obtenerHoja_() {
  * @throws {Error} Si la hoja no existe, la sección no se encuentra, o hay error de concurrencia.
  */
 function registrarEstudiante_(datos) {
-  var sheet = obtenerHoja_();
-  var propiedades = PropertiesService.getScriptProperties();
   var claveEnvio = datos.submissionId ? (CONFIG.prefijoEnvio + datos.submissionId) : '';
 
-  // ── Bloqueo de concurrencia ──
-  // Garantiza que dos estudiantes no puedan ocupar a la vez el último cupo.
-  var lock = LockService.getScriptLock();
+  // ── Fuera del bloqueo: obtener la referencia a la hoja ──
+  // Son dos llamadas a la API (getActiveSpreadsheet + getSheetByName) que no
+  // leen ni escriben datos: solo consiguen un identificador. Dentro del
+  // bloqueo se sumarían a la cola de todos los demás; aquí se resuelven en
+  // paralelo. Con ~7,5 llamadas por inscripción, sacar estas dos recorta
+  // más de un 25% del tiempo que cada solicitud retiene el bloqueo.
+  var sheet = obtenerHoja_();
 
-  try {
-    lock.waitLock(30000); // Esperar hasta 30 segundos
+  return conBloqueo_(function () {
 
-    // Paso 0: ¿Este mismo envío ya fue procesado? (doble clic, reintento, red)
-    if (claveEnvio) {
-      var envioPrevio = propiedades.getProperty(claveEnvio);
-      if (envioPrevio) {
-        var previo = JSON.parse(envioPrevio);
-        previo.duplicado = true;
-        return previo;
-      }
+    // ── Paso 0: ¿Este mismo envío ya se procesó? (doble clic, reintento) ──
+    // Se repite dentro del bloqueo aunque ya se haya mirado fuera: es aquí
+    // donde la comprobación queda a salvo de solicitudes simultáneas.
+    var previo = respuestaIdempotente_(claveEnvio);
+    if (previo) return previo;
+
+    // ── Paso 1: UNA sola lectura de la hoja ──
+    var snapshot = leerSnapshot_(sheet, true);
+    var seccion  = snapshot.secciones[claveGrupo_(datos.diaNormalizado, datos.grupoNombre)];
+
+    if (!seccion) {
+      // La hoja no tiene el bloque esperado: es un problema de configuración,
+      // no del estudiante. El detalle queda en el log, no en la respuesta.
+      registrarError_('registrarEstudiante', new Error(
+        'No existe la sección ' + datos.diaNormalizado + ' / ' + datos.grupoNombre +
+        ' en la hoja "' + CONFIG.hojaNombre + '". ¿Se ejecutó setup()?'
+      ));
+      throw errorControlado_(CODIGOS.ERROR,
+        'El horario seleccionado no está disponible en este momento. ' +
+        'Escríbenos por WhatsApp y completamos tu inscripción.');
     }
 
-    // Paso 1: Localizar la sección correcta
-    var seccion = encontrarSeccion_(sheet, datos.diaNormalizado, datos.grupoNombre);
-
-    // Paso 2: Verificar cupos y correos ya registrados en esa sección
-    var estado = inspeccionarSeccion_(sheet, seccion);
-
-    // El mismo correo ya está inscrito en este grupo: no duplicamos la fila.
-    if (datos.correo && estado.correos.indexOf(datos.correo.toLowerCase()) !== -1) {
+    // ── Paso 2: Duplicados ──
+    var duplicado = buscarDuplicado_(snapshot, seccion, datos);
+    if (duplicado) {
       return {
         fila:        0,
-        inscritos:   estado.inscritos,
-        disponibles: Math.max(0, CONFIG.limiteCupos - estado.inscritos),
+        inscritos:   seccion.inscritos,
+        disponibles: Math.max(0, CONFIG.limiteCupos - seccion.inscritos),
         limite:      CONFIG.limiteCupos,
-        duplicado:   true
+        duplicado:   true,
+        grupoPrevio: duplicado.dias + ' — ' + duplicado.grupo
       };
     }
 
-    // Validación definitiva del límite de cupos.
-    if (estado.inscritos >= CONFIG.limiteCupos) {
-      throw new Error(
-        ERROR_CUPO_LLENO + ' El grupo de ' + datos.diaOriginal + ' (' + datos.horarioOriginal +
+    // ── Paso 3: Validación definitiva del límite de cupos ──
+    if (seccion.inscritos >= CONFIG.limiteCupos) {
+      throw errorControlado_(CODIGOS.CUPO_LLENO,
+        'El grupo de ' + datos.diaOriginal + ' (' + datos.horarioOriginal +
         ') ya alcanzó el máximo de ' + CONFIG.limiteCupos +
-        ' estudiantes. Por favor, selecciona otro horario disponible.'
-      );
+        ' estudiantes. Por favor, selecciona otro horario disponible.');
     }
 
-    // Paso 3: Encontrar la fila exacta de inserción
-    var filaInsercion = encontrarFilaInsercion_(
-      sheet,
-      seccion.filaInicioEstudiantes,
-      seccion.filaProximoEncabezado
-    );
+    // ── Paso 4: Fila de inserción (ya calculada, sin releer) ──
+    var filaInsercion = filaDeInsercion_(seccion);
 
-    // Paso 4: Garantizar buffer de separación (puede insertar filas)
-    garantizarEspacioBuffer_(sheet, filaInsercion, seccion.filaProximoEncabezado);
+    // ── Paso 5: Garantizar buffer de separación ──
+    // Tras ejecutar ampliarBloquesParaCupos() los bloques tienen sitio para
+    // los 15 cupos, así que esta rama —la más costosa— no llega a activarse
+    // en el funcionamiento normal.
+    garantizarEspacioBuffer_(sheet, filaInsercion, seccion.filaProximoEncabezado,
+                             snapshot.totalFilas);
 
-    // Paso 5: Construir el registro
+    // ── Paso 6: Construir el registro ──
+    // Todos los textos pasan por sanitizarCelda_ para que Google Sheets no
+    // interprete como fórmula lo que escribió el estudiante.
     var fechaActual = Utilities.formatDate(
       new Date(),
       Session.getScriptTimeZone(),
       'dd/MM/yyyy HH:mm:ss'
     );
 
+    var L = CONFIG.limites;
     var registro = [
       fechaActual,
       CONFIG.nivelFijo,
-      datos.nombre,
-      datos.whatsapp,
-      datos.correo,
-      datos.diaOriginal,
-      datos.horarioOriginal
+      sanitizarCelda_(datos.nombre,          L.nombreMax),
+      sanitizarCelda_(datos.whatsapp,        L.whatsappMax),
+      sanitizarCelda_(datos.correo,          L.correoMax),
+      sanitizarCelda_(datos.diaOriginal,     40),
+      sanitizarCelda_(datos.horarioOriginal, 40)
     ];
 
-    // Paso 6: Escribir los datos en la fila
-    var rangoInsercion = sheet.getRange(filaInsercion, 1, 1, CONFIG.columnas.length);
-    rangoInsercion.setValues([registro]);
+    // ── Paso 7: Escribir los datos ──
+    sheet.getRange(filaInsercion, 1, 1, CONFIG.columnas.length).setValues([registro]);
 
-    // Paso 7: Aplicar formato limpio (nunca hereda de encabezados)
+    // ── Paso 8: Formato limpio (nunca hereda de encabezados) ──
     aplicarFormatoEstudiante_(
-      sheet,
-      filaInsercion,
-      seccion.filaInicioEstudiantes,
-      CONFIG.columnas.length
+      sheet, filaInsercion, seccion.filaInicio, CONFIG.columnas.length
     );
 
-    // Paso 8: Forzar escritura inmediata
+    // ── Paso 9: Confirmar la escritura antes de soltar el bloqueo ──
+    // Imprescindible: sin flush(), la siguiente solicitud podría leer la
+    // hoja sin ver esta fila y reutilizar el mismo cupo.
     SpreadsheetApp.flush();
 
     var resultado = {
       fila:        filaInsercion,
       fecha:       fechaActual,
-      inscritos:   estado.inscritos + 1,
-      disponibles: Math.max(0, CONFIG.limiteCupos - (estado.inscritos + 1)),
+      inscritos:   seccion.inscritos + 1,
+      disponibles: Math.max(0, CONFIG.limiteCupos - (seccion.inscritos + 1)),
       limite:      CONFIG.limiteCupos,
       duplicado:   false
     };
 
-    // Paso 9: Marcar el envío como procesado (evita registros y correos repetidos)
-    if (claveEnvio) {
-      propiedades.setProperty(claveEnvio, JSON.stringify(resultado));
-    }
+    // ── Paso 10: Marcar el envío y refrescar la disponibilidad publicada ──
+    guardarIdempotencia_(claveEnvio, resultado);
+    invalidarDisponibilidad_();
 
     return resultado;
+  });
+}
+
+/**
+ * Ejecuta una operación dentro del bloqueo de script.
+ *
+ * Diferencias con la versión anterior:
+ *   • tryLock() devuelve un booleano en lugar de lanzar una excepción con el
+ *     texto interno "Lock timeout: another process…", que acababa mostrándose
+ *     al estudiante.
+ *   • Se recuerda si el bloqueo llegó a obtenerse: antes se liberaba en el
+ *     finally aunque nunca se hubiera adquirido.
+ *   • Al agotarse la espera se responde OCUPADO, un código que el frontend
+ *     reconoce para reintentar solo, sin que el estudiante haga nada.
+ *
+ * @param {Function} operacion - Trabajo a realizar en exclusiva.
+ * @returns {*} Lo que devuelva la operación.
+ * @throws {Error} Error controlado OCUPADO si no se obtiene el bloqueo.
+ */
+function conBloqueo_(operacion) {
+  var lock = LockService.getScriptLock();
+  var adquirido = false;
+
+  try {
+    adquirido = lock.tryLock(CONFIG.seguridad.esperaLockMs);
+
+    if (!adquirido) {
+      throw errorControlado_(CODIGOS.OCUPADO,
+        'Estamos recibiendo muchas inscripciones a la vez. ' +
+        'Espera unos segundos: lo intentaremos de nuevo automáticamente.');
+    }
+
+    return operacion();
 
   } finally {
-    lock.releaseLock();
+    if (adquirido) lock.releaseLock();
+  }
+}
+
+/**
+ * Devuelve el resultado guardado de un envío ya procesado, si existe.
+ *
+ * La idempotencia vive en CacheService y no en ScriptProperties. Motivo: las
+ * propiedades del script no caducan y su almacén está limitado a 500 KB, de
+ * modo que la versión anterior se habría llenado tras unos miles de envíos y
+ * habría empezado a fallar al escribir. La caché caduca sola.
+ *
+ * La protección duradera contra registros repetidos no es ésta, sino la
+ * comprobación de correos sobre la propia hoja: aunque la caché se vacíe, un
+ * reenvío se detecta igualmente como duplicado.
+ *
+ * @param {string} claveEnvio - Clave del envío, o cadena vacía.
+ * @returns {Object|null} Resultado previo marcado como duplicado.
+ */
+function respuestaIdempotente_(claveEnvio) {
+  if (!claveEnvio) return null;
+
+  try {
+    var guardado = CacheService.getScriptCache().get(claveEnvio);
+    if (!guardado) return null;
+
+    var previo = JSON.parse(guardado);
+    previo.duplicado = true;
+    return previo;
+
+  } catch (err) {
+    registrarError_('respuestaIdempotente', err);
+    return null;
+  }
+}
+
+/**
+ * Guarda el resultado de un envío para reconocerlo si se repite.
+ *
+ * @param {string} claveEnvio - Clave del envío, o cadena vacía.
+ * @param {Object} resultado - Resultado a recordar.
+ */
+function guardarIdempotencia_(claveEnvio, resultado) {
+  if (!claveEnvio) return;
+
+  try {
+    CacheService.getScriptCache().put(
+      claveEnvio, JSON.stringify(resultado), CONFIG.cache.idempotenciaSegundos
+    );
+  } catch (err) {
+    registrarError_('guardarIdempotencia', err);
   }
 }
 
@@ -943,18 +1751,69 @@ function registrarEstudiante_(datos) {
  * @param {Object} data - Datos crudos recibidos del formulario.
  * @returns {Object} Respuesta lista para el frontend.
  */
-function procesarInscripcion_(data) {
+function procesarInscripcion_(data, opciones) {
+  var config = opciones || {};
+
+  // ── 1. Validación del request ──
+  // Antes que nada, porque es gratis y descarta la mayoría de las
+  // solicitudes manipuladas sin tocar la hoja ni la caché.
   var datos = normalizarDatos_(data);
-  var registro = registrarEstudiante_(datos);
 
-  var correos = { estudiante: false, administrador: false };
-
-  // Los correos se envían UNA sola vez por inscripción: si el envío ya
-  // había sido procesado antes (duplicado), no se vuelven a enviar.
-  if (!registro.duplicado) {
-    correos = enviarCorreosDeInscripcion_(datos, registro);
+  // ── 2. Reenvío idéntico: se responde sin gastar nada más ──
+  // Se comprueba antes del rate limiting para que los reintentos legítimos
+  // (mismo submissionId) no consuman el cupo de solicitudes del estudiante.
+  var claveEnvio = datos.submissionId ? (CONFIG.prefijoEnvio + datos.submissionId) : '';
+  var yaProcesado = respuestaIdempotente_(claveEnvio);
+  if (yaProcesado) {
+    return construirRespuestaDeExito_(yaProcesado, { estudiante: false, administrador: false });
   }
 
+  // ── 3. Validación del token ──
+  var token = null;
+  if (CONFIG.seguridad.tokenRequerido && !config.omitirToken) {
+    token = verificarToken_(datos.token);
+  }
+
+  // ── 4. Protección anti-spam / rate limiting ──
+  if (!config.omitirLimites) {
+    aplicarControlDeTrafico_(datos);
+  }
+
+  // ── 5-8. Duplicados, cupos, bloqueo y escritura segura ──
+  var registro = registrarEstudiante_(datos);
+
+  // ── 9. El token se consume solo al llegar a un desenlace definitivo ──
+  // Ante un OCUPADO o un fallo temporal no se llega aquí, así que el token
+  // sigue valiendo y el reintento automático funciona.
+  if (token) consumirToken_(token.nonce);
+
+  // ── 10. Correos: fuera del bloqueo y sin poder tumbar la inscripción ──
+  var correos = { estudiante: false, administrador: false };
+  if (!registro.duplicado) {
+    try {
+      correos = enviarCorreosDeInscripcion_(datos, registro);
+    } catch (err) {
+      // La inscripción ya está guardada: un fallo de correo no la invalida.
+      registrarError_('procesarInscripcion:correos', err);
+    }
+  }
+
+  // ── 11. Respuesta controlada ──
+  return construirRespuestaDeExito_(registro, correos);
+}
+
+/**
+ * Da forma a la respuesta de éxito que espera el frontend.
+ *
+ * El contrato se mantiene idéntico al de la versión 3.0 (status, message,
+ * fila, duplicado, inscritos, disponibles, limite, correos) para no romper
+ * las páginas ya publicadas.
+ *
+ * @param {Object} registro - Resultado de registrarEstudiante_.
+ * @param {Object} correos - Estado del envío de correos.
+ * @returns {Object} Respuesta para el frontend.
+ */
+function construirRespuestaDeExito_(registro, correos) {
   return {
     status:      'success',
     message:     registro.duplicado
@@ -965,7 +1824,7 @@ function procesarInscripcion_(data) {
     inscritos:   registro.inscritos,
     disponibles: registro.disponibles,
     limite:      registro.limite || CONFIG.limiteCupos,
-    correos:     correos
+    correos:     correos || { estudiante: false, administrador: false }
   };
 }
 
@@ -994,6 +1853,40 @@ var EMAIL_ESTILOS = {
 };
 
 /**
+ * Comprueba si queda cuota diaria de correo antes de intentar enviar.
+ *
+ * El valor se guarda unos segundos en caché porque consultarlo también es
+ * una llamada a la API: con cien inscripciones seguidas, preguntarlo cada
+ * vez añadiría cien viajes innecesarios.
+ *
+ * @param {number} necesarios - Correos que se pretenden enviar.
+ * @returns {boolean} true si hay margen suficiente.
+ */
+function hayCuotaDeCorreo_(necesarios) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var guardado = cache.get('cuota_correo');
+
+    var restantes;
+    if (guardado !== null && guardado !== undefined && guardado !== '') {
+      restantes = parseInt(guardado, 10);
+    } else {
+      restantes = MailApp.getRemainingDailyQuota();
+      cache.put('cuota_correo', String(restantes), 60);
+    }
+
+    if (isNaN(restantes)) return true;
+    return restantes >= necesarios;
+
+  } catch (err) {
+    // Si no se puede consultar, se intenta enviar igualmente: el propio
+    // sendEmail está protegido con su try/catch.
+    registrarError_('hayCuotaDeCorreo', err);
+    return true;
+  }
+}
+
+/**
  * Escapa caracteres especiales para insertar texto en HTML de forma segura.
  *
  * @param {string} texto - Texto sin procesar.
@@ -1019,6 +1912,24 @@ function escaparHtml_(texto) {
 function enviarCorreosDeInscripcion_(datos, registro) {
   var resultado = { estudiante: false, administrador: false };
 
+  // Se reserva exactamente la cuota que se va a gastar. Con el aviso al
+  // administrador desactivado es 1 correo por inscripción en lugar de 2, lo
+  // que duplica cuántas inscripciones caben en la cuota diaria de la cuenta
+  // (100/día en Gmail personal, 1500/día en Google Workspace).
+  var correosPrevistos = (CONFIG.correos.confirmarEstudiante ? 1 : 0) +
+                         (CONFIG.correos.notificarAdministrador && ADMIN_EMAIL ? 1 : 0);
+
+  if (correosPrevistos === 0) return resultado;
+
+  // Si no queda margen, la inscripción sigue siendo válida: solo se anota el
+  // aviso en el registro para que el administrador lo vea.
+  if (!hayCuotaDeCorreo_(correosPrevistos)) {
+    registrarError_('enviarCorreos', new Error(
+      'Cuota diaria de correo agotada: la inscripción se guardó pero no se notificó.'
+    ));
+    return resultado;
+  }
+
   var info = {
     nombre:       datos.nombre,
     correo:       datos.correo,
@@ -1037,7 +1948,8 @@ function enviarCorreosDeInscripcion_(datos, registro) {
   };
 
   // ── Correo 1: confirmación al estudiante ──
-  if (info.correo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.correo)) {
+  if (CONFIG.correos.confirmarEstudiante &&
+      info.correo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.correo)) {
     try {
       MailApp.sendEmail({
         to:       info.correo,
@@ -1054,7 +1966,11 @@ function enviarCorreosDeInscripcion_(datos, registro) {
   }
 
   // ── Correo 2: notificación al administrador ──
-  if (ADMIN_EMAIL) {
+  // Desactivado por defecto (CONFIG.correos.notificarAdministrador) para no
+  // gastar dos correos de cuota por cada inscripción. La plantilla y toda su
+  // lógica se conservan intactas: basta con volver a poner el interruptor en
+  // true para recuperar el aviso.
+  if (CONFIG.correos.notificarAdministrador && ADMIN_EMAIL) {
     try {
       MailApp.sendEmail({
         to:       ADMIN_EMAIL,
@@ -1453,22 +2369,38 @@ function construirCorreoAdminTextoPlano_(info) {
  *    Ejecutar solo en la configuración inicial.
  */
 function setup() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obtenerLibro_();
   var sheet = ss.getSheetByName(CONFIG.hojaNombre);
 
+  // Se genera ya el secreto de firma de tokens, para que no tenga que
+  // crearse durante la primera inscripción real.
+  obtenerSecretoToken_();
+
   // Crear la hoja si no existe, o limpiarla si ya existe
+  // Número de filas que se reservan bajo cada grupo: las 15 plazas del cupo
+  // más el buffer de separación. Reservarlas de antemano evita que haya que
+  // insertar filas durante una inscripción, que es la operación más lenta y
+  // la única que desplaza el resto de la hoja.
+  var filasPorBloque = CONFIG.limiteCupos + CONFIG.filasSeparacion;
+
+  // Altura total necesaria: por día, un encabezado + 4 grupos de
+  // (2 filas de horario + 1 cabecera + filasPorBloque) + 2 de separación.
+  var filasNecesarias = CONFIG.dias.length *
+    (1 + CONFIG.horarios.length * (3 + filasPorBloque) + 2) + 20;
+
   if (!sheet) {
     sheet = ss.insertSheet(CONFIG.hojaNombre);
   } else {
     sheet.clear();
     sheet.clearFormats();
-    // Resetear a un número razonable de filas
-    var filasActuales = sheet.getMaxRows();
-    if (filasActuales > 200) {
-      sheet.deleteRows(201, filasActuales - 200);
-    } else if (filasActuales < 200) {
-      sheet.insertRowsAfter(filasActuales, 200 - filasActuales);
-    }
+  }
+
+  // Ajustar la hoja al alto necesario
+  var filasActuales = sheet.getMaxRows();
+  if (filasActuales > filasNecesarias) {
+    sheet.deleteRows(filasNecesarias + 1, filasActuales - filasNecesarias);
+  } else if (filasActuales < filasNecesarias) {
+    sheet.insertRowsAfter(filasActuales, filasNecesarias - filasActuales);
   }
 
   // Asegurar que hay suficientes columnas
@@ -1497,8 +2429,8 @@ function setup() {
       // ═══ CABECERA DE COLUMNAS ═══
       filaActual = escribirCabeceraColumnas_(sheet, filaActual, numCols);
 
-      // ═══ BUFFER DE SEPARACIÓN ═══
-      filaActual += CONFIG.filasSeparacion;
+      // ═══ ESPACIO RESERVADO PARA LOS CUPOS + BUFFER DE SEPARACIÓN ═══
+      filaActual += filasPorBloque;
     }
 
     // Espacio extra entre bloques de días
@@ -1517,6 +2449,82 @@ function setup() {
   }
 
   SpreadsheetApp.flush();
+
+  // ── Preparar el lado de seguridad ──
+  // Se genera aquí el secreto de firma de tokens para que no tenga que
+  // crearse durante la primera inscripción real.
+  obtenerSecretoToken_();
+  invalidarDisponibilidad_();
+
+  Logger.log('✅ setup() completado. Filas por bloque: ' + filasPorBloque +
+             ' (cupo ' + CONFIG.limiteCupos + ' + ' + CONFIG.filasSeparacion + ' de separación).');
+}
+
+/**
+ * Amplía los bloques existentes SIN borrar las inscripciones ya registradas.
+ *
+ * Ejecuta esta función una sola vez si tu hoja se creó con una versión
+ * anterior, donde cada grupo solo tenía 5 filas reservadas para 15 cupos.
+ *
+ * Por qué importa: cuando un bloque se queda sin espacio, cada inscripción
+ * obliga a insertar filas y a limpiar su formato heredado, unas trece
+ * llamadas extra a Google Sheets dentro del bloqueo. Reservando el espacio
+ * de antemano, esa operación deja de producirse durante el uso normal.
+ *
+ * Es segura de repetir: si los bloques ya son suficientes, no hace nada.
+ */
+function ampliarBloquesParaCupos() {
+  var sheet = obtenerHoja_();
+  var necesarias = CONFIG.limiteCupos + CONFIG.filasSeparacion;
+
+  var snapshot = leerSnapshot_(sheet, false);
+
+  // Se recorre de abajo hacia arriba: así las filas que se insertan no
+  // desplazan las secciones que todavía quedan por revisar.
+  var claves = snapshot.orden.slice().reverse();
+  var añadidas = 0;
+
+  for (var i = 0; i < claves.length; i++) {
+    var seccion  = snapshot.secciones[claves[i]];
+    var capacidad = seccion.filaProximoEncabezado - seccion.filaInicio;
+    if (capacidad >= necesarias) continue;
+
+    var faltan  = necesarias - capacidad;
+    var maxFilas = sheet.getMaxRows();
+    var desde;
+
+    if (seccion.filaProximoEncabezado > maxFilas) {
+      sheet.insertRowsAfter(maxFilas, faltan);
+      desde = maxFilas + 1;
+    } else {
+      sheet.insertRowsBefore(seccion.filaProximoEncabezado, faltan);
+      desde = seccion.filaProximoEncabezado;
+    }
+
+    // Las filas insertadas heredan el formato del encabezado que tenían
+    // debajo: hay que dejarlas neutras.
+    var rango = sheet.getRange(desde, 1, faltan, sheet.getMaxColumns());
+    rango.clear();
+    rango
+      .setBackground(CONFIG.colores.fondoEstudiante)
+      .setFontColor(CONFIG.colores.textoEstudiante)
+      .setFontWeight('normal')
+      .setFontSize(10)
+      .setFontFamily('Arial')
+      .setHorizontalAlignment('left')
+      .setVerticalAlignment('middle');
+    rango.breakApart();
+
+    añadidas += faltan;
+    Logger.log('  · ' + seccion.dia + ' / ' + seccion.grupo +
+               ' → +' + faltan + ' filas (tenía ' + capacidad + ')');
+  }
+
+  SpreadsheetApp.flush();
+  invalidarDisponibilidad_();
+
+  Logger.log('✅ ampliarBloquesParaCupos(): ' + añadidas + ' filas añadidas. ' +
+             'Ninguna inscripción existente fue modificada.');
 }
 
 
@@ -1637,7 +2645,7 @@ function testInscripcion() {
   var datosPrueba = {
     nombre:       'Estudiante de Prueba',
     whatsapp:     '+1 809-555-0001',
-    correo:       'prueba@ejemplo.com',
+    correo:       'prueba' + new Date().getTime() + '@ejemplo.com',
     dias:         'Lunes y Jueves',
     horario:      '9:00 AM – 10:30 AM',
     grupo:        'Primer grupo de la mañana',
@@ -1647,8 +2655,189 @@ function testInscripcion() {
     submissionId: 'test-' + new Date().getTime()
   };
 
-  var respuesta = procesarInscripcion_(datosPrueba);
+  // Se omite el token porque esta prueba se ejecuta desde el editor, no desde
+  // el formulario. Las peticiones reales SÍ lo exigen.
+  var respuesta = procesarInscripcion_(datosPrueba, { omitirToken: true });
   Logger.log('✅ Resultado: ' + JSON.stringify(respuesta));
+}
+
+/**
+ * Comprueba que el backend rechaza los datos manipulados.
+ *
+ * Recorre una batería de payloads inválidos y verifica que cada uno produce
+ * un error controlado en lugar de una excepción interna o, peor, un registro
+ * aceptado. Ninguna de estas pruebas escribe en la hoja.
+ */
+function testValidaciones() {
+  function base(extra) {
+    var d = {
+      nombre: 'Ana María Pérez',
+      whatsapp: '+1 809-555-0001',
+      correo: 'ana@ejemplo.com',
+      dias: 'Lunes y Jueves',
+      horario: '9:00 AM – 10:30 AM',
+      grupo: 'Primer grupo de la mañana',
+      aceptoTerminos: true
+    };
+    for (var k in extra) { if (extra.hasOwnProperty(k)) d[k] = extra[k]; }
+    return d;
+  }
+
+  var casos = [
+    ['payload nulo',                 null],
+    ['payload array',                []],
+    ['nombre numérico',              base({ nombre: 12345 })],
+    ['nombre objeto',                base({ nombre: { a: 1 } })],
+    ['nombre demasiado corto',       base({ nombre: 'Al' })],
+    ['nombre de 500 caracteres',     base({ nombre: new Array(501).join('a') })],
+    ['nombre con fórmula',           base({ nombre: '=IMPORTXML("http://x","//a")' })],
+    ['whatsapp vacío',               base({ whatsapp: '' })],
+    ['whatsapp con letras',          base({ whatsapp: 'llámame' })],
+    ['whatsapp de 3 dígitos',        base({ whatsapp: '123' })],
+    ['correo ausente',               base({ correo: '', email: '' })],
+    ['correo malformado',            base({ correo: 'ana@@ejemplo' })],
+    ['días inventados',              base({ dias: 'SÁBADOS Y DOMINGOS' })],
+    ['grupo inexistente',            base({ grupo: 'zzz', horario: '' })],
+    ['grupo = "constructor"',        base({ grupo: 'constructor', horario: '' })],
+    ['sin aceptar términos',         base({ aceptoTerminos: false })],
+    ['submissionId con símbolos',    base({ submissionId: '../../etc/passwd' })]
+  ];
+
+  var fallos = 0;
+  Logger.log('════ VALIDACIÓN DE DATOS MANIPULADOS ════');
+
+  for (var i = 0; i < casos.length; i++) {
+    var nombre = casos[i][0];
+    try {
+      normalizarDatos_(casos[i][1]);
+      Logger.log('❌ ACEPTADO (no debería): ' + nombre);
+      fallos++;
+    } catch (err) {
+      if (err.codigoLingola === CODIGOS.DATOS_INVALIDOS) {
+        Logger.log('✅ rechazado: ' + nombre + ' → "' + err.message + '"');
+      } else {
+        Logger.log('❌ error NO controlado en: ' + nombre + ' → ' + err);
+        fallos++;
+      }
+    }
+  }
+
+  Logger.log(fallos === 0
+    ? '✅ Las ' + casos.length + ' entradas inválidas fueron rechazadas correctamente.'
+    : '❌ ' + fallos + ' caso(s) sin controlar.');
+}
+
+/**
+ * Informe rápido del estado del servicio.
+ * Útil antes de una jornada de inscripciones masivas.
+ */
+function estadoDelServicio() {
+  Logger.log('════ ESTADO DEL BACKEND LINGOLA ════');
+
+  try {
+    var sheet = obtenerHoja_();
+    var snapshot = leerSnapshot_(sheet, true);
+
+    var totalInscritos = 0;
+    var bloquesJustos  = 0;
+    var necesarias = CONFIG.limiteCupos + CONFIG.filasSeparacion;
+
+    for (var i = 0; i < snapshot.orden.length; i++) {
+      var s = snapshot.secciones[snapshot.orden[i]];
+      totalInscritos += s.inscritos;
+      if ((s.filaProximoEncabezado - s.filaInicio) < necesarias) bloquesJustos++;
+    }
+
+    Logger.log('Hoja: "' + CONFIG.hojaNombre + '" · ' + snapshot.orden.length + ' bloques detectados');
+    Logger.log('Inscritos totales: ' + totalInscritos + ' de ' +
+               (snapshot.orden.length * CONFIG.limiteCupos) + ' plazas');
+    Logger.log(bloquesJustos === 0
+      ? '✅ Todos los bloques tienen espacio reservado para los ' + CONFIG.limiteCupos + ' cupos.'
+      : '⚠️  ' + bloquesJustos + ' bloque(s) sin espacio reservado → ejecuta ampliarBloquesParaCupos()');
+
+  } catch (err) {
+    Logger.log('❌ No se pudo leer la hoja: ' + err.message);
+  }
+
+  try {
+    var porInscripcion = (CONFIG.correos.confirmarEstudiante ? 1 : 0) +
+                         (CONFIG.correos.notificarAdministrador && ADMIN_EMAIL ? 1 : 0);
+    var restantes = MailApp.getRemainingDailyQuota();
+
+    Logger.log('Correos disponibles hoy: ' + restantes +
+               ' · cada inscripción consume ' + porInscripcion);
+    Logger.log('Aviso al administrador por inscripción: ' +
+               (CONFIG.correos.notificarAdministrador ? 'activado' : 'desactivado'));
+    Logger.log(porInscripcion > 0
+      ? '→ Caben todavía ' + Math.floor(restantes / porInscripcion) + ' inscripciones hoy.'
+      : '→ No se envía ningún correo (ambos avisos desactivados).');
+
+  } catch (err) {
+    Logger.log('⚠️  No se pudo consultar la cuota de correo: ' + err.message);
+  }
+
+  Logger.log('Token exigido: ' + (CONFIG.seguridad.tokenRequerido ? 'sí' : 'NO ⚠️') +
+             ' · vigencia ' + (CONFIG.seguridad.tokenTtlSegundos / 60) + ' min');
+  Logger.log('Secreto de firma: ' +
+             (PropertiesService.getScriptProperties().getProperty(CLAVES.secretoToken) ? 'configurado ✅' : 'ausente ⚠️'));
+  Logger.log('Espera máxima del bloqueo: ' + (CONFIG.seguridad.esperaLockMs / 1000) + ' s');
+  Logger.log('Deduplicación de correo: ' + CONFIG.duplicados.alcance);
+}
+
+/**
+ * Prueba de carga ejecutable desde el editor.
+ *
+ * Registra N inscripciones seguidas midiendo el tiempo de cada una. No
+ * reproduce la simultaneidad real (eso requiere lanzar peticiones HTTP en
+ * paralelo, ver pruebas-concurrencia.js), pero sí mide el coste efectivo de
+ * la sección crítica, que es lo que determina cuánta cola puede absorberse.
+ *
+ * ⚠️ Escribe en la hoja. Ejecuta setup() después para dejarla limpia.
+ *
+ * @param {number} cantidad - Inscripciones a registrar (por defecto 15).
+ */
+function testCarga(cantidad) {
+  var total = cantidad || 15;
+  var marca = new Date().getTime();
+  var tiempos = [];
+  var errores = 0;
+
+  Logger.log('════ PRUEBA DE CARGA: ' + total + ' inscripciones ════');
+
+  for (var i = 1; i <= total; i++) {
+    var inicio = new Date().getTime();
+    try {
+      // Registro directo: esta prueba mide la hoja, no envía correos.
+      registrarEstudiante_(normalizarDatos_({
+        nombre:   'Carga Prueba ' + i,
+        whatsapp: '809555' + (1000 + i),
+        correo:   'carga' + marca + '-' + i + '@ejemplo.com',
+        dias:     'Lunes y Jueves',
+        horario:  '9:00 AM – 10:30 AM',
+        grupo:    'Primer grupo de la mañana',
+        aceptoTerminos: true
+      }));
+      tiempos.push(new Date().getTime() - inicio);
+    } catch (err) {
+      errores++;
+      Logger.log('  #' + i + ' → ' + (err.codigoLingola || 'ERROR') + ': ' + err.message);
+    }
+  }
+
+  if (tiempos.length) {
+    var suma = 0, max = 0;
+    for (var t = 0; t < tiempos.length; t++) {
+      suma += tiempos[t];
+      if (tiempos[t] > max) max = tiempos[t];
+    }
+    var media = Math.round(suma / tiempos.length);
+    Logger.log('Registros correctos: ' + tiempos.length + ' · errores: ' + errores);
+    Logger.log('Tiempo medio por registro: ' + media + ' ms · máximo: ' + max + ' ms');
+    Logger.log('Estimación para 100 solicitudes en cola: ' +
+               Math.round(media * 100 / 1000) + ' s de espera acumulada.');
+  } else {
+    Logger.log('❌ Ningún registro completado. Errores: ' + errores);
+  }
 }
 
 /**
@@ -1715,9 +2904,12 @@ function testCorreos() {
 /**
  * Borra las marcas de envíos ya procesados (claves de idempotencia).
  *
- * Estas marcas evitan que un mismo envío se registre o notifique dos veces.
- * Ejecuta esta función solo si necesitas limpiar el historial técnico,
- * por ejemplo después de muchas pruebas. No afecta a la hoja de cálculo.
+ * Desde la versión 4.0 estas marcas viven en CacheService y caducan solas, de
+ * modo que ya no hace falta mantenerlas. Esta función limpia las que dejó la
+ * versión anterior en ScriptProperties, que no caducaban nunca y acabarían
+ * agotando el almacén de 500 KB.
+ *
+ * Nunca borra el secreto de firma de tokens. No afecta a la hoja de cálculo.
  */
 function limpiarMarcasDeEnvio() {
   var propiedades = PropertiesService.getScriptProperties();
@@ -1725,13 +2917,15 @@ function limpiarMarcasDeEnvio() {
   var eliminadas = 0;
 
   for (var clave in todas) {
+    if (clave === CLAVES.secretoToken) continue;
     if (clave.indexOf(CONFIG.prefijoEnvio) === 0) {
       propiedades.deleteProperty(clave);
       eliminadas++;
     }
   }
 
-  Logger.log('🧹 Marcas de envío eliminadas: ' + eliminadas);
+  Logger.log('🧹 Marcas antiguas eliminadas de ScriptProperties: ' + eliminadas);
+  Logger.log('ℹ️  Las marcas actuales están en CacheService y caducan a las 6 h.');
 }
 
 /**
@@ -1769,7 +2963,8 @@ function testInscripcionMasiva() {
         correo:   'test' + contador + '@ejemplo.com',
         dias:     combinaciones[c].dias,
         horario:  rangosHora[combinaciones[c].grupo],
-        grupo:    combinaciones[c].grupo
+        grupo:    combinaciones[c].grupo,
+        aceptoTerminos: true
       };
 
       var datosNorm = normalizarDatos_(datos);

@@ -1245,6 +1245,15 @@
             let isSubmitting = false;
             let isCompleted = false;
 
+            // Token temporal emitido por el backend. Se pide al abrir la
+            // página para que el envío no tenga que esperar dos viajes.
+            let sessionToken = null;
+
+            // Número máximo de intentos automáticos cuando el servidor
+            // responde que está saturado. Como el submissionId no cambia,
+            // el backend reconoce el reenvío y nunca duplica la inscripción.
+            const MAX_INTENTOS = 4;
+
             function loadRegistrationData() {
                 const savedLevel = localStorage.getItem(PAGE_CONFIG.LEVEL_STORAGE_KEY);
                 const savedRegistration = localStorage.getItem(PAGE_CONFIG.REGISTRATION_STORAGE_KEY);
@@ -1351,8 +1360,80 @@
                     inicioClases: registrationData.inicioClases || LINGOLA_CONFIG.inicioClases.fecha,
                     aceptoTerminos: true,
                     fechaAceptacion: new Date().toISOString(),
-                    submissionId: getSubmissionId()
+                    submissionId: getSubmissionId(),
+                    // Token temporal de un solo uso. No es un secreto: lo
+                    // emite el propio backend y caduca a los 30 minutos.
+                    token: sessionToken || ''
                 };
+            }
+
+            /**
+             * Llamada JSONP genérica al backend.
+             * Se usa JSONP porque estas páginas pueden abrirse desde
+             * cualquier origen y así la respuesta siempre es legible.
+             */
+            function llamarBackendJsonp(params, timeoutMs) {
+                return new Promise(function (resolve, reject) {
+                    const callbackName = 'lingolaCb_' + Date.now() + '_' +
+                                         Math.floor(Math.random() * 100000);
+                    const script = document.createElement('script');
+                    let finished = false;
+
+                    const cleanup = function () {
+                        finished = true;
+                        delete window[callbackName];
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                    };
+
+                    const timer = setTimeout(function () {
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('Tiempo de espera agotado.'));
+                    }, timeoutMs || 25000);
+
+                    window[callbackName] = function (data) {
+                        clearTimeout(timer);
+                        cleanup();
+                        resolve(data);
+                    };
+
+                    script.onerror = function () {
+                        clearTimeout(timer);
+                        if (finished) return;
+                        cleanup();
+                        reject(new Error('No se pudo conectar con el servidor.'));
+                    };
+
+                    script.src = PAGE_CONFIG.GAS_WEB_APP_URL + '?callback=' + callbackName +
+                                 '&' + params + '&t=' + Date.now();
+                    document.body.appendChild(script);
+                });
+            }
+
+            /**
+             * Pide un token temporal al backend.
+             * El token acredita que la solicitud nace de una sesión real del
+             * formulario y solo puede usarse una vez.
+             */
+            function obtenerToken() {
+                return llamarBackendJsonp('action=token', 15000).then(function (respuesta) {
+                    if (!respuesta || respuesta.status !== 'success' || !respuesta.token) {
+                        throw new Error('No se pudo iniciar la sesión del formulario.');
+                    }
+                    sessionToken = respuesta.token;
+                    return sessionToken;
+                });
+            }
+
+            /** Devuelve el token actual, pidiéndolo si hace falta. */
+            function asegurarToken() {
+                return sessionToken ? Promise.resolve(sessionToken) : obtenerToken();
+            }
+
+            /** Pausa con una pequeña variación aleatoria para no reintentar todos a la vez. */
+            function esperar(ms) {
+                const conJitter = ms + Math.floor(Math.random() * 1500);
+                return new Promise(function (resolve) { setTimeout(resolve, conJitter); });
             }
 
             function buildWhatsAppURL() {
@@ -1423,41 +1504,10 @@
              * backend detecta el envío repetido y no duplica nada.
              */
             function enviarPorJsonp(payload) {
-                return new Promise(function (resolve, reject) {
-                    const callbackName = 'lingolaInscripcion_' + Date.now();
-                    const script = document.createElement('script');
-                    let finished = false;
-
-                    const cleanup = function () {
-                        finished = true;
-                        delete window[callbackName];
-                        if (script.parentNode) script.parentNode.removeChild(script);
-                    };
-
-                    const timer = setTimeout(function () {
-                        if (finished) return;
-                        cleanup();
-                        reject(new Error('Tiempo de espera agotado.'));
-                    }, 25000);
-
-                    window[callbackName] = function (data) {
-                        clearTimeout(timer);
-                        cleanup();
-                        resolve(data);
-                    };
-
-                    script.onerror = function () {
-                        clearTimeout(timer);
-                        if (finished) return;
-                        cleanup();
-                        reject(new Error('No se pudo conectar con el servidor.'));
-                    };
-
-                    script.src = PAGE_CONFIG.GAS_WEB_APP_URL +
-                        '?action=inscribir&callback=' + callbackName +
-                        '&data=' + encodeURIComponent(JSON.stringify(payload));
-                    document.body.appendChild(script);
-                });
+                return llamarBackendJsonp(
+                    'action=inscribir&data=' + encodeURIComponent(JSON.stringify(payload)),
+                    25000
+                );
             }
 
             /** Marca la inscripción como completada y lleva al estudiante a WhatsApp. */
@@ -1484,6 +1534,33 @@
              *   2. El backend envía los correos solo si el registro fue correcto.
              *   3. Se muestra el éxito y se redirige a WhatsApp.
              */
+            /**
+             * Realiza un intento de envío: primero por POST y, si el
+             * navegador impide leer la respuesta, por JSONP.
+             */
+            function intentarEnvio() {
+                const payload = buildSubmissionPayload();
+
+                return enviarPorPost(payload).catch(function (error) {
+                    console.warn('[Lingola] POST no legible, usando respaldo JSONP:', error.message);
+                    return enviarPorJsonp(payload);
+                });
+            }
+
+            /**
+             * Códigos que el servidor devuelve cuando conviene reintentar
+             * en lugar de dar la inscripción por fallida.
+             *
+             *   OCUPADO         → hay cola de solicitudes; solo hay que esperar.
+             *   TOKEN_INVALIDO  → el token caducó o ya se usó; se pide otro.
+             *   TOKEN_EXPIRADO  → la página llevaba mucho tiempo abierta.
+             */
+            function esReintentable(codigo) {
+                return codigo === 'OCUPADO' ||
+                       codigo === 'TOKEN_INVALIDO' ||
+                       codigo === 'TOKEN_EXPIRADO';
+            }
+
             function enviarInscripcion() {
                 if (!isBackendURLValid()) {
                     showFeedback(
@@ -1495,52 +1572,89 @@
                     return;
                 }
 
-                const payload = buildSubmissionPayload();
                 showFeedback('Registrando tu inscripción y verificando la disponibilidad de tu grupo…', 'info');
 
-                enviarPorPost(payload)
-                    .catch(function (error) {
-                        // El POST no pudo leerse (CORS, red): se reintenta por JSONP.
-                        console.warn('[Lingola] POST no legible, usando respaldo JSONP:', error.message);
-                        return enviarPorJsonp(payload);
-                    })
-                    .then(function (respuesta) {
-                        if (!respuesta || typeof respuesta !== 'object') {
-                            throw new Error('Respuesta no válida del servidor.');
-                        }
+                /**
+                 * Ciclo de intentos. El submissionId es el mismo en todos, así
+                 * que aunque un intento anterior sí llegara a guardarse, el
+                 * backend lo reconoce y responde sin duplicar nada.
+                 */
+                function ciclo(intento) {
+                    return asegurarToken()
+                        .then(intentarEnvio)
+                        .then(function (respuesta) {
+                            if (!respuesta || typeof respuesta !== 'object') {
+                                throw new Error('Respuesta no válida del servidor.');
+                            }
 
-                        if (respuesta.status === 'success') {
-                            completarInscripcion();
-                            return;
-                        }
+                            if (respuesta.status === 'success') {
+                                completarInscripcion();
+                                return;
+                            }
 
-                        if (respuesta.code === 'CUPO_LLENO') {
-                            const error = new Error(respuesta.message || 'El grupo seleccionado ya está lleno.');
-                            error.code = 'CUPO_LLENO';
+                            // Reintento automático ante saturación o token caducado.
+                            if (esReintentable(respuesta.code) && intento < MAX_INTENTOS) {
+                                sessionToken = null; // se pedirá uno nuevo
+                                showFeedback(
+                                    'Hay muchas inscripciones en curso ahora mismo. ' +
+                                    'Seguimos intentándolo, no cierres esta página…',
+                                    'info'
+                                );
+                                return esperar(intento * 2500).then(function () {
+                                    return ciclo(intento + 1);
+                                });
+                            }
+
+                            const error = new Error(respuesta.message || 'No se pudo registrar la inscripción.');
+                            error.code = respuesta.code;
                             throw error;
-                        }
+                        })
+                        .catch(function (error) {
+                            // Fallo de red o de la propia plataforma: con 100
+                            // personas enviando a la vez, Apps Script puede
+                            // rechazar peticiones por su límite de ejecuciones
+                            // simultáneas. Como el submissionId no cambia,
+                            // reintentar es seguro: si el registro llegó a
+                            // guardarse, el backend lo reconoce y no duplica.
+                            if (!error.code && intento < MAX_INTENTOS) {
+                                console.warn('[Lingola] Intento ' + intento + ' fallido:', error.message);
+                                sessionToken = null;
+                                showFeedback(
+                                    'La conexión está congestionada. Seguimos intentándolo, ' +
+                                    'no cierres esta página…',
+                                    'info'
+                                );
+                                return esperar(intento * 2500).then(function () {
+                                    return ciclo(intento + 1);
+                                });
+                            }
+                            throw error;
+                        });
+                }
 
-                        throw new Error(respuesta.message || 'No se pudo registrar la inscripción.');
-                    })
-                    .catch(function (error) {
-                        console.error('[Lingola] Error al registrar la inscripción:', error);
+                ciclo(1).catch(function (error) {
+                    console.error('[Lingola] Error al registrar la inscripción:', error);
 
-                        if (error.code === 'CUPO_LLENO') {
-                            showFeedback(
-                                error.message + ' Vuelve al paso anterior para elegir otro horario.',
-                                'warning'
-                            );
-                        } else {
-                            showFeedback(
-                                'No pudimos completar tu inscripción en este momento: ' + error.message +
-                                ' Tus datos no se han perdido; revisa tu conexión e inténtalo de nuevo.',
-                                'error'
-                            );
-                        }
+                    if (error.code === 'CUPO_LLENO') {
+                        showFeedback(
+                            error.message + ' Vuelve al paso anterior para elegir otro horario.',
+                            'warning'
+                        );
+                    } else if (error.code === 'DEMASIADAS_SOLICITUDES' ||
+                               error.code === 'DATOS_INVALIDOS') {
+                        // Mensajes ya redactados por el servidor para el usuario.
+                        showFeedback(error.message, 'warning');
+                    } else {
+                        showFeedback(
+                            'No pudimos completar tu inscripción en este momento: ' + error.message +
+                            ' Tus datos no se han perdido; revisa tu conexión e inténtalo de nuevo.',
+                            'error'
+                        );
+                    }
 
-                        // El botón vuelve a habilitarse para permitir el reintento.
-                        setSubmitLoading(false);
-                    });
+                    // El botón vuelve a habilitarse para permitir el reintento.
+                    setSubmitLoading(false);
+                });
             }
 
             if (!loadRegistrationData()) {
@@ -1588,6 +1702,18 @@
             });
 
             updateSubmitButton();
+
+            /**
+             * Se pide el token nada más cargar la página, en segundo plano.
+             * Así, cuando el estudiante pulsa el botón, el envío ya solo
+             * necesita un viaje al servidor. Si esta petición falla, no se
+             * muestra nada: se volverá a pedir en el momento del envío.
+             */
+            if (isBackendURLValid()) {
+                obtenerToken().catch(function (error) {
+                    console.warn('[Lingola] No se pudo obtener el token por adelantado:', error.message);
+                });
+            }
         });
     </script>
 </body>
