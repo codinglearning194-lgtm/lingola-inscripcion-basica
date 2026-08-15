@@ -102,7 +102,7 @@ const SELLO = Date.now().toString(36);
 function construirPayload(i, token) {
   const g = GRUPOS[i % GRUPOS.length];
   return {
-    nivel: 'Inglés Básico Nuevo',
+    nivel: 'Inglés Básico',
     nombre: 'Prueba Carga ' + enLetras(i),
     whatsapp: '809555' + String(1000 + i),
     email: 'carga-' + SELLO + '-' + i + '@ejemplo-pruebas.test',

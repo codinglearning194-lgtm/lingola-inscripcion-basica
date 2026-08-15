@@ -35,7 +35,7 @@ ok(tok.expiraEn === 1800, 'El token declara 30 minutos de vigencia', tok.expiraE
 
 // ── 4. contrato: POST con el payload EXACTO del frontend ──
 const payloadReal = {
-  nivel: 'Inglés Básico Nuevo',
+  nivel: 'Inglés Básico',
   nombre: 'María José Rodríguez Peña',
   whatsapp: '+1 809-555-0123',
   email: 'maria.jose@ejemplo.com',
