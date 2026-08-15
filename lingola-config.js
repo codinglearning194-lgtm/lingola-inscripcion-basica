@@ -56,6 +56,20 @@ const LINGOLA_CONFIG = {
         descripcion: 'Fecha de inicio del próximo ciclo.',
     },
 
+    // ── Zona horaria del sistema de inscripciones ──────────
+    // ⚠️ SINCRONIZACIÓN CON EL BACKEND
+    //    Debe ser idéntica a CONFIG.zonaHoraria en backend-ingles-basico.gs.
+    //
+    //    La fecha y hora OFICIAL de cada inscripción la genera el servidor;
+    //    este valor no interviene en ella. Se usa únicamente para los textos
+    //    que arma el navegador (por ejemplo, el mensaje de WhatsApp de
+    //    respaldo), de modo que muestren la hora del programa y no la del
+    //    dispositivo del estudiante, que puede estar en otro país o tener el
+    //    reloj mal configurado.
+    //
+    //    Debe ser un identificador IANA, nunca un desfase fijo tipo 'UTC-4'.
+    zonaHoraria: 'America/Santo_Domingo',
+
     // ── Pago de la mensualidad ─────────────────────────────
     // Ventana de pago mensual y método aceptado.
     pagoMensualidad: {

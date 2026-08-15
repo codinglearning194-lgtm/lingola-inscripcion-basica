@@ -203,24 +203,49 @@ const Utilities = {
     const normal = String(texto).replace(/-/g, '+').replace(/_/g, '/');
     return aBytesConSigno(Buffer.from(normal, 'base64'));
   },
+  base64Encode(entrada) {
+    const buf = Array.isArray(entrada) ? deBytesConSigno(entrada) : Buffer.from(String(entrada), 'utf8');
+    return buf.toString('base64');
+  },
+  base64Decode(texto) {
+    return aBytesConSigno(Buffer.from(String(texto), 'base64'));
+  },
   computeHmacSha256Signature(valor, clave) {
     return aBytesConSigno(crypto.createHmac('sha256', String(clave)).update(String(valor), 'utf8').digest());
   },
   computeDigest(_alg, valor) {
     return aBytesConSigno(crypto.createHash('sha256').update(String(valor), 'utf8').digest());
   },
-  newBlob(bytes) {
-    return { getDataAsString: () => deBytesConSigno(bytes).toString('utf8') };
+  // Devuelve lo mismo que un Blob de Apps Script: además del texto, los bytes
+  // y los metadatos que necesitan las imágenes en línea de los correos.
+  newBlob(bytes, tipo, nombre) {
+    return {
+      getDataAsString: () => deBytesConSigno(bytes).toString('utf8'),
+      getBytes: () => bytes.slice(),
+      getContentType: () => tipo || null,
+      getName: () => nombre || null
+    };
   },
-  formatDate(fecha, _tz, formato) {
-    const p = n => String(n).padStart(2, '0');
+  // Convierte de verdad a la zona horaria recibida, igual que hace
+  // Utilities.formatDate en Apps Script. Antes se ignoraba el parámetro y se
+  // usaba la hora local de la máquina que ejecuta las pruebas, con lo que un
+  // desfase de zona horaria habría pasado desapercibido.
+  formatDate(fecha, tz, formato) {
+    const partes = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year:  'numeric', month:  '2-digit', day:    '2-digit',
+      hour:  '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    }).formatToParts(fecha).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+
     return formato
-      .replace('dd', p(fecha.getDate()))
-      .replace('MM', p(fecha.getMonth() + 1))
-      .replace('yyyy', fecha.getFullYear())
-      .replace('HH', p(fecha.getHours()))
-      .replace('mm', p(fecha.getMinutes()))
-      .replace('ss', p(fecha.getSeconds()));
+      .replace('dd', partes.day)
+      .replace('MM', partes.month)
+      .replace('yyyy', partes.year)
+      // Algunas versiones de Node devuelven "24" para la medianoche.
+      .replace('HH', partes.hour === '24' ? '00' : partes.hour)
+      .replace('mm', partes.minute)
+      .replace('ss', partes.second);
   },
   DigestAlgorithm: { SHA_256: 'SHA_256' },
   Charset: { UTF_8: 'UTF_8' }
@@ -272,7 +297,11 @@ const sandbox = {
     getRemainingDailyQuota: () => (sandbox.__cuotaCorreo === undefined ? 100 : sandbox.__cuotaCorreo)
   },
 
-  Session: { getScriptTimeZone: () => 'America/Santo_Domingo' },
+  // Deliberadamente distinta de CONFIG.zonaHoraria: reproduce el proyecto de
+  // Apps Script con la zona mal configurada, que es lo que provocaba el
+  // desfase. Si alguna parte del backend volviera a apoyarse en la zona del
+  // proyecto en lugar de en CONFIG.zonaHoraria, las pruebas de fecha fallarían.
+  Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
   Logger: { log: (m) => { if (process.env.VERBOSE) console.log('   [log]', m); } },
   Utilities
 };

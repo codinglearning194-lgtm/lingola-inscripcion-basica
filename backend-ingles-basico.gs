@@ -100,6 +100,32 @@ var CONFIG = {
   // ── Nivel fijo del programa ──
   nivelFijo: 'Inglés Básico',
 
+  // ── Zona horaria oficial del sistema de inscripciones ──
+  // ÚNICA fuente de verdad para la fecha y hora de cada inscripción: la que
+  // se escribe en Google Sheets y la que aparece en el correo de confirmación.
+  //
+  // Antes se usaba Session.getScriptTimeZone(), que devuelve la zona guardada
+  // en el proyecto de Apps Script (appsscript.json → "timeZone"). Google la
+  // fija automáticamente al crear el proyecto, tomando la del equipo desde el
+  // que se creó, y NO se actualiza al corregir el reloj del ordenador: por eso
+  // las horas quedaban desfasadas. Con un identificador IANA explícito la hora
+  // registrada ya no depende ni del servidor, ni del navegador del estudiante,
+  // ni de la configuración del proyecto.
+  //
+  // El identificador debe ser IANA (por ejemplo 'America/Santo_Domingo'),
+  // nunca un desfase fijo tipo 'UTC-4': así los cambios de horario de verano,
+  // si algún día aplicaran, se resuelven solos.
+  //
+  // Recomendado: ajusta también la zona del proyecto en el editor de Apps
+  // Script (⚙️ Configuración del proyecto → Zona horaria) al mismo valor, para
+  // que los registros de ejecución y los activadores coincidan. El código ya
+  // no depende de ello, pero evita confusiones al diagnosticar.
+  zonaHoraria: 'America/Santo_Domingo',
+
+  // Formato con el que se guarda y se muestra la fecha de inscripción.
+  // Se usa el mismo en la hoja y en el correo para que sean idénticos.
+  formatoFechaHora: 'dd/MM/yyyy HH:mm:ss',
+
   // ── Encabezados de columna para la tabla de estudiantes ──
   columnas: [
     'Fecha de inscripción',
@@ -501,6 +527,29 @@ function registrarError_(origen, err) {
 // ═══════════════════════════════════════════════════════════════════════════
 // SECCIÓN 3: FUNCIONES AUXILIARES REUTILIZABLES
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Devuelve la fecha y hora actuales en la zona horaria oficial del sistema.
+ *
+ * Es el ÚNICO punto del backend que lee el reloj para registrar una
+ * inscripción. Se llama una sola vez por inscripción y el texto resultante
+ * viaja tal cual a la hoja de cálculo y al correo de confirmación, de modo que
+ * ambos muestran exactamente la misma hora, sin reconversiones intermedias.
+ *
+ * No se suma ni se resta ningún desfase a mano: la conversión la hace
+ * Utilities.formatDate a partir del identificador IANA de CONFIG.zonaHoraria,
+ * así que un eventual cambio de horario de verano se aplicaría solo.
+ *
+ * Si CONFIG.zonaHoraria quedara vacía por error, se recurre a la zona del
+ * proyecto para no dejar la celda sin fecha, pero eso es solo una red de
+ * seguridad: el funcionamiento normal nunca pasa por ahí.
+ *
+ * @returns {string} Fecha y hora con el formato CONFIG.formatoFechaHora.
+ */
+function fechaHoraLocal_() {
+  var zona = CONFIG.zonaHoraria || Session.getScriptTimeZone();
+  return Utilities.formatDate(new Date(), zona, CONFIG.formatoFechaHora);
+}
 
 /**
  * Extrae los datos enviados desde el formulario, independientemente del formato.
@@ -1605,11 +1654,10 @@ function registrarEstudiante_(datos) {
     // ── Paso 6: Construir el registro ──
     // Todos los textos pasan por sanitizarCelda_ para que Google Sheets no
     // interprete como fórmula lo que escribió el estudiante.
-    var fechaActual = Utilities.formatDate(
-      new Date(),
-      Session.getScriptTimeZone(),
-      'dd/MM/yyyy HH:mm:ss'
-    );
+    // Se lee el reloj UNA sola vez, en la zona horaria oficial del sistema
+    // (CONFIG.zonaHoraria). Este mismo texto es el que se escribe en la hoja y
+    // el que después usa el correo de confirmación: nunca se vuelve a generar.
+    var fechaActual = fechaHoraLocal_();
 
     var L = CONFIG.limites;
     var registro = [
@@ -1853,6 +1901,94 @@ var EMAIL_ESTILOS = {
 };
 
 /**
+ * Logotipo de Lingola English Teaching que encabeza los correos.
+ *
+ * Va incrustado como imagen adjunta en línea (cid:) y no como URL externa
+ * por dos motivos: no depende de que ningún servidor siga en pie, y Outlook
+ * de escritorio bloquea las imágenes remotas por omisión pero sí muestra las
+ * adjuntas. El círculo blanco con aro dorado viene dibujado dentro del propio
+ * PNG porque Outlook ignora border-radius: así el distintivo es redondo en
+ * todos los clientes. Fuente: assets/logo-lingola-email.png (96x96, con
+ * transparencia fuera del círculo).
+ */
+var LOGO_CORREO_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAADAFBMVEVMaXHttAHqswjqswn/sQDqswfqswfpswjqswbqswjqswbpswfqsgfq' +
+  'sgbrswfosgfqsgjnswzqsgfqsgfqsgfpswjqswfpswfpswfpsgjqsgfqswf////qswj9/v7+///9/vv///77/Pz///z8/Pn+++/89NUePmv1' +
+  '9/ciRXD+/PPut0IqZpL89+T013vxzFgZMFv33pUVK1P//vnuuUYsbZn9+errtQ0kWocgS3XloTb89d32/Pzl6ewzfqb57sgkO2QuQWWkrLcO' +
+  'JlBygZgZOWRueIvrtxT124g8R2IwdqDuwTMlVH/v3aftvSZ3f5GcpLFCa4k9irRMYXzGzNTo8/Y4QVgeUH7q7vAsO1vyvkrsuRsrYIvY3OEe' +
+  'NWHuwzntrjz39Nvf4+c3Q1/446RpcoJGV3i3ws3z5sLu+frinDIySGzu8vM3gawKH0jg7vORo7PutDs4UXJ5hpwrN0/jvGjpqjZCUHA9YH/j' +
+  'uVUSLVrx4bGKlaNcan6utcD68MxKWHLqsUDN1NrOo1dWY3fBx81BTWbS2t7blzCeqbZYbYdJVGokNVndrEsrT3WHjpzaq1d6mq4sWYPUmT3j' +
+  'qj/YpEn667fn0Jn18NVWVVKus7k0a5TbnTxqfJNppL65vsRVhJX567xpip6Omqtykae3fH2+hIa5ztdfd5Hlt0k2OVhLgaHuyW2tnWnqu1Hv' +
+  '1I2XnqkDFT/nv1vKrmZ6jqKpv8tnbXY7dpTcoDHhyIh9h5SqcHF2V2nFmlFeV3MvKUjJk5SkICXwuz1mioeUl3S/2eDszH65mFiNeE6vjlH1' +
+  '5sygg0hCianatVmcfo7UsGe1bW/Z6vB7i3eZvMt9k4Xo5dJkM0lbe3wiLDu/kZFbi6eRq7rduXGItMajV1uThV1bPlaGBAqlt8Nxb1/OxLuE' +
+  'qrr1wlOULjU1W3vQq61YYG/R5eq4sXvPuYJxY0ZMKERYmbashZKfOT5MSkm1spyMXWZ8cYR6fm+u0NvVv62CO0nQoKCvlZyeonvtui2toann' +
+  'Qx/GAAAAHHRSTlMADlo1A+3S/Uv4yo7DYmUg3RSmQKqchKmB2t/l9mjjkwAAAAlwSFlzAAALEwAACxMBAJqcGAAADnNJREFUaN7NWgdU09ca' +
+  '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';
+
+/** Blob del logotipo, creado una sola vez por ejecución. */
+var _logoCorreoBlob = null;
+function logoCorreoBlob_() {
+  if (!_logoCorreoBlob) {
+    _logoCorreoBlob = Utilities.newBlob(
+      Utilities.base64Decode(LOGO_CORREO_BASE64),
+      'image/png',
+      'logo-lingola.png'
+    );
+  }
+  return _logoCorreoBlob;
+}
+
+/** Imágenes en línea que acompañan a cualquiera de las dos plantillas. */
+function imagenesDelCorreo_() {
+  return { logoLingola: logoCorreoBlob_() };
+}
+
+/**
  * Comprueba si queda cuota diaria de correo antes de intentar enviar.
  *
  * El valor se guarda unos segundos en caché porque consultarlo también es
@@ -1940,7 +2076,14 @@ function enviarCorreosDeInscripcion_(datos, registro) {
     grupo:        datos.grupoNombre,
     inicioClases: datos.inicioClases,
     acepto:       datos.aceptoTerminos,
-    fecha:        registro.fecha || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
+
+    // La fecha del correo es EXACTAMENTE la que se guardó en la hoja: llega en
+    // registro.fecha desde registrarEstudiante_. Aquí no se lee el reloj ni se
+    // convierte nada, porque cualquier segunda lectura mostraría una hora
+    // distinta de la registrada. Esta función solo se invoca para inscripciones
+    // nuevas (procesarInscripcion_ la salta si registro.duplicado es true), y en
+    // ese camino registro.fecha siempre viene informada.
+    fecha:        registro.fecha,
     inscritos:    registro.inscritos,
     disponibles:  registro.disponibles,
     limite:       registro.limite || CONFIG.limiteCupos,
@@ -1957,7 +2100,8 @@ function enviarCorreosDeInscripcion_(datos, registro) {
         htmlBody: construirCorreoEstudiante_(info),
         body:     construirCorreoEstudianteTextoPlano_(info),
         name:     CONFIG.marca.nombre,
-        replyTo:  ADMIN_EMAIL
+        replyTo:  ADMIN_EMAIL,
+        inlineImages: imagenesDelCorreo_()
       });
       resultado.estudiante = true;
     } catch (err) {
@@ -1978,7 +2122,8 @@ function enviarCorreosDeInscripcion_(datos, registro) {
         htmlBody: construirCorreoAdministrador_(info),
         body:     construirCorreoAdminTextoPlano_(info),
         name:     CONFIG.marca.nombre,
-        replyTo:  info.correo || ADMIN_EMAIL
+        replyTo:  info.correo || ADMIN_EMAIL,
+        inlineImages: imagenesDelCorreo_()
       });
       resultado.administrador = true;
     } catch (err) {
@@ -2038,7 +2183,12 @@ function plantillaCorreo_(opciones) {
   '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>' +
   '<td align="center" style="padding-bottom:14px;">' +
   '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>' +
-  '<td align="center" valign="middle" width="54" height="54" style="width:54px;height:54px;background-color:' + E.dorado + ';border-radius:50%;font-family:Arial,Helvetica,sans-serif;font-size:26px;color:' + E.azul + ';font-weight:bold;">&#127891;</td>' +
+  // El círculo y el aro dorado están dibujados dentro del PNG (Outlook no
+  // entiende border-radius). Si el cliente bloquea imágenes, queda el texto
+  // alternativo, en blanco para que se lea sobre el azul del encabezado.
+  '<td align="center" valign="middle" width="54" height="54" style="width:54px;height:54px;line-height:0;font-size:0;">' +
+  '<img src="cid:logoLingola" width="54" height="54" alt="' + escaparHtml_(CONFIG.marca.nombre) + '" ' +
+  'style="display:block;width:54px;height:54px;border:0;outline:none;text-decoration:none;color:' + E.blanco + ';font-family:Arial,Helvetica,sans-serif;font-size:12px;" /></td>' +
   '</tr></table></td></tr>' +
   '<tr><td align="center" style="font-family:\'Poppins\',Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;color:' + E.blanco + ';letter-spacing:-0.3px;line-height:1.3;">' +
   'Lingola <span style="color:' + E.dorado + ';">English Teaching</span></td></tr>' +
@@ -2649,7 +2799,7 @@ function testInscripcion() {
     dias:         'Lunes y Jueves',
     horario:      '9:00 AM – 10:30 AM',
     grupo:        'Primer grupo de la mañana',
-    nivel:        'Inglés Básico Nuevo',
+    nivel:        'Inglés Básico',
     inicioClases: CONFIG.marca.inicioClasesPorDefecto,
     aceptoTerminos: true,
     submissionId: 'test-' + new Date().getTime()
@@ -2868,13 +3018,13 @@ function testCorreos() {
     nombre:       'Estudiante de Prueba',
     correo:       ADMIN_EMAIL,
     whatsapp:     '+1 809-555-0001',
-    nivel:        'Inglés Básico Nuevo',
+    nivel:        'Inglés Básico',
     dias:         'Lunes y Jueves',
     horario:      '9:00 AM – 10:30 AM',
     grupo:        'Primer grupo de la mañana',
     inicioClases: CONFIG.marca.inicioClasesPorDefecto,
     acepto:       true,
-    fecha:        Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
+    fecha:        fechaHoraLocal_(),
     inscritos:    3,
     disponibles:  12,
     limite:       CONFIG.limiteCupos,
@@ -2886,7 +3036,8 @@ function testCorreos() {
     subject:  '[PRUEBA] Confirmación de inscripción - ' + CONFIG.marca.nombre,
     htmlBody: construirCorreoEstudiante_(info),
     body:     construirCorreoEstudianteTextoPlano_(info),
-    name:     CONFIG.marca.nombre
+    name:     CONFIG.marca.nombre,
+    inlineImages: imagenesDelCorreo_()
   });
 
   MailApp.sendEmail({
@@ -2894,7 +3045,8 @@ function testCorreos() {
     subject:  '[PRUEBA] Nueva inscripción recibida - ' + CONFIG.marca.nombre,
     htmlBody: construirCorreoAdministrador_(info),
     body:     construirCorreoAdminTextoPlano_(info),
-    name:     CONFIG.marca.nombre
+    name:     CONFIG.marca.nombre,
+    inlineImages: imagenesDelCorreo_()
   });
 
   Logger.log('✅ Correos de prueba enviados a ' + ADMIN_EMAIL);

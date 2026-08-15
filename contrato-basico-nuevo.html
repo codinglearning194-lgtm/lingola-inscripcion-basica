@@ -1437,8 +1437,13 @@
             }
 
             function buildWhatsAppURL() {
+                // Mensaje de respaldo: la fecha se expresa en la zona horaria
+                // del programa (LINGOLA_CONFIG.zonaHoraria), no en la del
+                // dispositivo del estudiante, que puede estar en otro país o
+                // tener el reloj mal configurado.
                 const today = new Date();
                 const fechaInscripcion = today.toLocaleDateString('es-DO', {
+                    timeZone: LINGOLA_CONFIG.zonaHoraria,
                     year: 'numeric', month: 'long', day: 'numeric'
                 });
 
