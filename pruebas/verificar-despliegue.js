@@ -159,6 +159,30 @@ function comoJson(texto) {
     mal('Error al probar el endpoint: ' + e.message);
   }
 
+  // ── 5. El panel de administración está publicado ──
+  // Marcador fiable de que la versión servida incluye la SECCIÓN 4C: pedir
+  // "liberar-grupo" por GET debe rechazarse explícitamente. Una versión
+  // anterior no conoce esa acción y responde el saludo genérico.
+  //
+  // No lleva contraseña ni escribe nada: solo comprueba que la acción existe
+  // y que, por GET, está cerrada.
+  console.log('\n▸ Panel de administración');
+  try {
+    const r = await pedir('?action=liberar-grupo');
+    const j = comoJson(r.texto);
+
+    if (j && j.status === 'error' && j.code === 'NO_AUTORIZADO') {
+      ok('La acción existe y por GET se rechaza (' + r.ms + ' ms)');
+      ok('La contraseña solo puede viajar por POST');
+    } else if (j && j.status === 'success') {
+      mal('La versión publicada no incluye el panel: falta implementar una versión nueva');
+    } else {
+      mal('Respuesta inesperada: ' + JSON.stringify(j).slice(0, 120));
+    }
+  } catch (e) {
+    mal('Error al comprobar el panel: ' + e.message);
+  }
+
   // ── Resumen ──
   console.log('\n' + '═'.repeat(64));
   if (fallos === 0) {
