@@ -89,7 +89,32 @@ const respJsonp = sandbox.doGet({
 const resJsonp = JSON.parse(respJsonp.texto.replace(/^lingolaCb_789\(/, '').replace(/\);$/, ''));
 ok(resJsonp.status === 'success', 'El respaldo JSONP también registra', resJsonp);
 
-// ── 7. Ataque directo al endpoint sin token ──
+// ── 7. La etiqueta del programa la pone el servidor, no el navegador ──
+// Reproduce un formulario abierto desde una visita anterior, cuyo localStorage
+// todavía guarda el nombre viejo del nivel.
+const tok4 = JSON.parse(
+  sandbox.doGet({ parameter: { action: 'token', callback: 'cb' } }).texto.replace(/^cb\(/, '').replace(/\);$/, '')
+).token;
+const correoViejo = 'etiqueta.vieja@ejemplo.com';
+sandbox.__correos = [];
+const resViejo = JSON.parse(sandbox.doPost({
+  postData: { type: 'text/plain', contents: JSON.stringify(Object.assign({}, payloadReal, {
+    nivel: 'Inglés Básico Nuevo', email: correoViejo, nombre: 'Ana Luisa Pérez',
+    submissionId: 'ins-ghi789', token: tok4
+  })) }
+}).texto);
+ok(resViejo.status === 'success', 'La inscripción con la etiqueta vieja se registra igual', resViejo);
+
+const correoEstudiante = (sandbox.__correos || []).filter(c => c.to === correoViejo)[0];
+const cuerpoEstudiante = correoEstudiante ? correoEstudiante.htmlBody + correoEstudiante.body : '';
+ok(cuerpoEstudiante.indexOf('Inglés Básico Nuevo') === -1,
+   'El correo del estudiante no repite la etiqueta vieja enviada por el navegador');
+ok(cuerpoEstudiante.indexOf('Inglés Básico') !== -1,
+   'El correo del estudiante muestra el nivel de la configuración del servidor');
+ok(hoja.leer(resViejo.fila, 2) === 'Inglés Básico',
+   'La hoja tampoco recoge la etiqueta vieja', hoja.leer(resViejo.fila, 2));
+
+// ── 8. Ataque directo al endpoint sin token ──
 const ataque = JSON.parse(sandbox.doPost({
   postData: { type: 'text/plain', contents: JSON.stringify(Object.assign({}, payloadReal, {
     email: 'atacante@ejemplo.com', submissionId: 'ataque-1', token: ''
@@ -98,7 +123,7 @@ const ataque = JSON.parse(sandbox.doPost({
 ok(ataque.status === 'error' && ataque.code === 'TOKEN_INVALIDO',
    'Una llamada directa al endpoint sin token es rechazada', ataque);
 
-// ── 8. Ninguna excepción escapa nunca de doPost ──
+// ── 9. Ninguna excepción escapa nunca de doPost ──
 const basura = [
   { postData: { type: 'text/plain', contents: 'esto no es json' } },
   { postData: { type: 'text/plain', contents: '{"nombre":' } },
@@ -116,7 +141,7 @@ basura.forEach((e, i) => {
 });
 ok(escapadas === 0, 'Los ' + basura.length + ' cuerpos malformados producen respuesta de error controlada');
 
-// ── 9. Los mensajes de error no filtran información interna ──
+// ── 10. Los mensajes de error no filtran información interna ──
 const filtraciones = ['Lock timeout', 'setup()', 'Spreadsheets', 'line ', 'at Object', 'undefined is not'];
 let filtrados = 0;
 basura.forEach(e => {

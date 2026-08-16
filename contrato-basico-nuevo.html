@@ -1460,7 +1460,10 @@
                     registrationData.whatsapp,
                     '',
                     'Programa:',
-                    registrationData.nivel || 'Inglés Básico',
+                    // Se toma de la configuración, no de registrationData: los
+                    // datos guardados pueden venir de una visita anterior y
+                    // traer la etiqueta antigua ("Inglés Básico Nuevo").
+                    LINGOLA_CONFIG.curso.nombre,
                     '',
                     'Grupo de días:',
                     registrationData.dias,

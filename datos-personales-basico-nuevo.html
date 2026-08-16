@@ -843,11 +843,11 @@
                 const availability = getCardAvailability(selectedSchedule.days, selectedSchedule.time);
 
                 return {
-                    // Es el nombre del programa tal y como aparece en el correo
-                    // de confirmación. "basico-nuevo" sigue siendo la clave
-                    // interna del nivel (lingola-config.js y localStorage): esto
-                    // solo es la etiqueta que lee el estudiante.
-                    nivel: 'Inglés Básico',
+                    // Es el nombre del programa tal y como lo lee el estudiante.
+                    // "basico-nuevo" (LINGOLA_CONFIG.curso.nivel) sigue siendo la
+                    // clave interna del nivel en localStorage; esto solo es la
+                    // etiqueta visible.
+                    nivel: LINGOLA_CONFIG.curso.nombre,
                     nombre: fields.name.value.trim(),
                     whatsapp: fields.whatsapp.value.trim(),
                     email: fields.email.value.trim(),

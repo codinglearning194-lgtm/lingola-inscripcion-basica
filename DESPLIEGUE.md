@@ -78,9 +78,9 @@ Debe responder **v4.0** y emitir un token. Si sigue diciendo v2.0, el paso 5 no 
 
 ### 7. Frontend
 
-Sube `contrato-basico-nuevo.html`. Es el único HTML modificado.
+Sube `contrato-basico-nuevo.html` y `datos-personales-basico-nuevo.html`. Son los únicos HTML modificados.
 
-Los demás (`datos-personales-*.html`, `seleccionDenivel.html`, `informacion-*.html`, `index.html`) no cambiaron.
+Los demás (`seleccionDenivel.html`, `informacion-*.html`, `index.html`) no cambiaron.
 
 ---
 
@@ -91,6 +91,7 @@ Haz una inscripción real desde el formulario:
 - [ ] La fila aparece en la hoja, en el bloque correcto
 - [ ] El WhatsApp se ve como texto (`+1 809-…`), no como `#ERROR!`
 - [ ] Llega el correo de confirmación al estudiante
+- [ ] El correo y el mensaje de WhatsApp dicen **Inglés Básico** (no "Inglés Básico Nuevo")
 - [ ] Repetir con el mismo correo responde "ya había sido registrada" y **no** crea otra fila
 
 ---

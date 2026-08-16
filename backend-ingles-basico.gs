@@ -218,7 +218,6 @@ var CONFIG = {
     whatsappDigitosMin:   8,     // Dígitos reales una vez retirado el formato
     whatsappDigitosMax:   15,    // Máximo del estándar E.164
     correoMax:            100,
-    nivelMax:             40,
     submissionIdMax:      64,
     tokenMax:             400,
     payloadMax:           8000   // Bytes del cuerpo de la solicitud
@@ -298,9 +297,6 @@ var RE_CORREO = /^[^\s@]{1,64}@[^\s@]{1,255}\.[A-Za-z]{2,24}$/;
 
 /** Teléfono tal como lo escribe una persona: dígitos y separadores comunes. */
 var RE_WHATSAPP = /^[0-9+\-()\s.]+$/;
-
-/** Texto corto y neutro (nivel del curso). */
-var RE_TEXTO_SIMPLE = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9 .\-]+$/;
 
 /** Identificador de envío generado por el frontend. */
 var RE_SUBMISSION_ID = /^[A-Za-z0-9_\-]+$/;
@@ -703,7 +699,7 @@ function rangoOficialDelGrupo_(grupoNombre) {
  * validación hecha en el navegador.
  *
  * Campos que el servidor decide por su cuenta e ignora del cliente:
- *   • nivel escrito en la hoja  → CONFIG.nivelFijo
+ *   • nivel de la hoja y del correo → CONFIG.nivelFijo
  *   • horario escrito en la hoja → rango oficial del grupo
  *   • inicio de clases del correo → CONFIG.marca.inicioClasesPorDefecto
  *
@@ -805,13 +801,12 @@ function normalizarDatos_(data) {
   var token = textoDelCampo_(data.token);
   if (token === null) token = '';
 
-  // ── Nivel: solo se usa en los correos; si no es un texto neutro, se
-  //    sustituye por el valor de la configuración. Nunca llega a la hoja. ──
-  var nivel = textoDelCampo_(data.nivel);
-  nivel = (nivel === null) ? '' : nivel.replace(/\s+/g, ' ');
-  if (!nivel || nivel.length > L.nivelMax || !RE_TEXTO_SIMPLE.test(nivel)) {
-    nivel = CONFIG.nivelFijo;
-  }
+  // ── Nivel ──
+  //    El programa tiene un único nivel, así que el nombre lo pone siempre el
+  //    servidor y se ignora data.nivel. Antes se aceptaba la etiqueta del
+  //    navegador, y un formulario abierto desde antes (o un localStorage
+  //    viejo) podía colar un nombre distinto —"Inglés Básico Nuevo"— en el
+  //    correo de confirmación.
 
   return {
     nombre:          nombre,
@@ -822,7 +817,7 @@ function normalizarDatos_(data) {
     diaNormalizado:  diaNormalizado,
     grupoNombre:     grupoNombre,
     horarioOriginal: rangoOficialDelGrupo_(grupoNombre), // Decidido por el servidor
-    nivel:           nivel,
+    nivel:           CONFIG.nivelFijo, // Decidido por el servidor
     inicioClases:    CONFIG.marca.inicioClasesPorDefecto, // Decidido por el servidor
     aceptoTerminos:  true,
     submissionId:    submissionId,
