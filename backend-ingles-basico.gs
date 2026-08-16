@@ -59,6 +59,9 @@ var ADMIN_EMAIL = 'lingolaenglishteaching@gmail.com';
  */
 var ERROR_CUPO_LLENO = '[CUPO_LLENO]';
 
+/** Acción del panel de administración que vacía un grupo (solo por POST). */
+var ACCION_LIBERAR = 'liberar-grupo';
+
 /**
  * Códigos de error que viajan al frontend.
  * El frontend decide qué mensaje mostrar a partir de estos valores, de modo
@@ -71,15 +74,18 @@ var CODIGOS = {
   TOKEN_EXPIRADO:         'TOKEN_EXPIRADO',          // Caducó por antigüedad
   DEMASIADAS_SOLICITUDES: 'DEMASIADAS_SOLICITUDES',  // Rate limiting por identidad
   OCUPADO:                'OCUPADO',                 // Saturación temporal: reintentar
+  NO_AUTORIZADO:          'NO_AUTORIZADO',           // Panel de administración: clave incorrecta
   ERROR:                  'ERROR'                    // Cualquier otro fallo
 };
 
 /** Claves usadas dentro de CacheService y PropertiesService. */
 var CLAVES = {
   secretoToken:   'LINGOLA_TOKEN_SECRET',  // ScriptProperties
+  claveAdmin:     'LINGOLA_ADMIN_CLAVE',   // ScriptProperties: "sal:huella" del panel
   disponibilidad: 'disp_v4',               // Cache: respuesta de ?action=disponibilidad
   token:          'tk_',                   // Cache: nonce de token ya consumido
-  rate:           'rl_'                    // Cache: contadores de frecuencia
+  rate:           'rl_',                   // Cache: contadores de frecuencia
+  rateAdmin:      'adm'                    // Cache: intentos de clave de administración
 };
 
 
@@ -96,6 +102,11 @@ var CONFIG = {
 
   // ── Nombre de la hoja dentro de Google Sheets ──
   hojaNombre: 'Inscripciones Básico',
+
+  // ── Hoja donde se guardan los grupos liberados ──
+  // Al liberar un grupo desde el panel de administración, sus filas se copian
+  // aquí antes de vaciarse de la hoja principal. Nada se borra sin dejar copia.
+  hojaArchivo: 'Archivo de inscripciones',
 
   // ── Nivel fijo del programa ──
   nivelFijo: 'Inglés Básico',
@@ -243,6 +254,17 @@ var CONFIG = {
     limiteTokensGlobal:       600,  ventanaTokensSegundos:     300
   },
 
+  // ── Panel de administración (liberar un grupo) ──
+  // La contraseña NO se escribe aquí: vive en ScriptProperties y solo se
+  // guarda su huella. Ver guardarClaveAdministrador().
+  admin: {
+    longitudMinimaClave:     8,
+    // Intentos de contraseña admitidos por ventana. Es un tope bajo a
+    // propósito: el panel lo usa una persona, no cien estudiantes.
+    limiteIntentos:          8,
+    ventanaIntentosSegundos: 900
+  },
+
   // ── Tiempos de vida en CacheService ──
   cache: {
     disponibilidadSegundos: 20,     // Evita releer la hoja en cada visita
@@ -315,6 +337,7 @@ var RE_SUBMISSION_ID = /^[A-Za-z0-9_\-]+$/;
  *   • disponibilidad   → Devuelve los cupos libres de los 8 grupos.
  *   • inscribir        → Registra una inscripción (respaldo cuando el
  *                        navegador bloquea la lectura de la respuesta POST).
+ *   • liberar-grupo    → Se rechaza: lleva contraseña y solo se acepta por POST.
  *
  * Si se envía el parámetro "callback", la respuesta se devuelve en formato
  * JSONP. Esto permite que una página estática lea el resultado sin depender
@@ -361,6 +384,17 @@ function doGet(e) {
       return responder_(procesarInscripcion_(extraerDatosDelRequest_(e)), callback);
     }
 
+    // Liberar un grupo exige contraseña, y una contraseña no puede viajar en
+    // una URL: queda en el historial del navegador y en los logs de Google.
+    // Por eso esta acción se rechaza aquí y solo se atiende en doPost.
+    if (accion === ACCION_LIBERAR) {
+      return responder_({
+        status:  'error',
+        code:    CODIGOS.NO_AUTORIZADO,
+        message: 'Esta acción solo se acepta por POST.'
+      }, callback);
+    }
+
     return responder_({
       status: 'success',
       message: 'Backend Lingola — Inglés Básico v4.0 — Activo.'
@@ -388,6 +422,13 @@ function doGet(e) {
 function doPost(e) {
   try {
     var data = extraerDatosDelRequest_(e);
+
+    // Panel de administración. Solo por POST: la contraseña viaja en el
+    // cuerpo, nunca en la URL (ver SECCIÓN 4C).
+    if (data && data.action === ACCION_LIBERAR) {
+      return responder_(procesarLiberacionDeGrupo_(data), '');
+    }
+
     return responder_(procesarInscripcion_(data), '');
 
   } catch (err) {
@@ -976,15 +1017,48 @@ function consumirToken_(nonce) {
  * @returns {string} 16 caracteres hexadecimales.
  */
 function huella_(texto) {
+  return hashHex_(texto).substring(0, 16);
+}
+
+/**
+ * SHA-256 completo en hexadecimal.
+ *
+ * @param {string} texto - Dato de origen.
+ * @returns {string} 64 caracteres hexadecimales.
+ */
+function hashHex_(texto) {
   var bytes = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256, String(texto), Utilities.Charset.UTF_8
   );
 
   var hex = '';
-  for (var i = 0; i < 8; i++) {
+  for (var i = 0; i < bytes.length; i++) {
     hex += ('0' + (((bytes[i] % 256) + 256) % 256).toString(16)).slice(-2);
   }
   return hex;
+}
+
+/**
+ * Compara dos cadenas sin cortocircuitar en el primer carácter distinto.
+ *
+ * Una comparación normal con === termina antes cuanto antes falle, y ese
+ * tiempo revela cuántos caracteres se acertaron. Aquí siempre se recorre
+ * la cadena entera.
+ *
+ * @param {string} a - Primera cadena.
+ * @param {string} b - Segunda cadena.
+ * @returns {boolean} true si son idénticas.
+ */
+function comparacionSegura_(a, b) {
+  var uno = String(a);
+  var dos = String(b);
+  if (uno.length !== dos.length) return false;
+
+  var diferencia = 0;
+  for (var i = 0; i < uno.length; i++) {
+    diferencia |= uno.charCodeAt(i) ^ dos.charCodeAt(i);
+  }
+  return diferencia === 0;
 }
 
 /**
@@ -2493,6 +2567,262 @@ function construirCorreoAdminTextoPlano_(info) {
     'Estado: registrada en Google Sheets',
     'Términos y condiciones: ' + (info.acepto ? 'Aceptados' : 'No confirmados')
   ].join('\n');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECCIÓN 4C: PANEL DE ADMINISTRACIÓN — LIBERAR UN GRUPO
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Permite vaciar un grupo que ya llegó a sus 15 cupos para que vuelva a
+// aparecer libre en el formulario, sin perder los datos de quienes estaban
+// inscritos: sus filas se copian a la hoja de archivo ANTES de vaciarse.
+//
+// Tres decisiones de seguridad:
+//
+//   1. La acción viaja SIEMPRE por POST. La contraseña nunca puede ir en una
+//      URL: las URLs quedan registradas en los logs de Google y en el
+//      historial del navegador.
+//   2. La contraseña no se guarda: se guarda su huella SHA-256 con sal, en
+//      ScriptProperties (lado servidor). Nada de esto aparece en el HTML.
+//   3. Los intentos están limitados en frecuencia, para que la contraseña no
+//      se pueda buscar a base de probar.
+
+/**
+ * Guarda la contraseña del panel de administración.
+ *
+ * Ejecútala UNA sola vez desde el editor de Apps Script:
+ *
+ *   1. Escribe la contraseña en CLAVE_NUEVA (mínimo 8 caracteres).
+ *   2. Guarda el proyecto y ejecuta esta función.
+ *   3. Vuelve a dejar CLAVE_NUEVA vacía y guarda otra vez.
+ *
+ * Solo se almacena la huella, así que la contraseña no queda escrita en
+ * ningún sitio ni puede recuperarse: si se olvida, se vuelve a ejecutar esta
+ * función con una nueva.
+ *
+ * @param {string} [claveOpcional] - Contraseña. Solo lo usan las pruebas
+ *                                   automatizadas; desde el editor se deja
+ *                                   vacío y se rellena CLAVE_NUEVA.
+ */
+function guardarClaveAdministrador(claveOpcional) {
+  // ✏️ Escribe aquí la contraseña, ejecuta la función y vuelve a vaciarla.
+  var CLAVE_NUEVA = '';
+
+  var clave = String(claveOpcional || CLAVE_NUEVA || '');
+
+  if (clave.length < CONFIG.admin.longitudMinimaClave) {
+    throw new Error('La contraseña debe tener al menos ' +
+      CONFIG.admin.longitudMinimaClave + ' caracteres. Escríbela en CLAVE_NUEVA.');
+  }
+
+  var sal = Utilities.getUuid();
+  PropertiesService.getScriptProperties()
+    .setProperty(CLAVES.claveAdmin, sal + ':' + hashHex_(sal + clave));
+
+  Logger.log('✅ Contraseña de administración guardada. ' +
+             'Vacía CLAVE_NUEVA y guarda el proyecto.');
+}
+
+/**
+ * Comprueba la contraseña del panel. Lanza un error controlado si no encaja.
+ *
+ * @param {string} clave - Contraseña recibida del formulario.
+ * @throws {Error} NO_AUTORIZADO o DEMASIADAS_SOLICITUDES.
+ */
+function verificarClaveAdmin_(clave) {
+  var A = CONFIG.admin;
+
+  // El contador se incrementa ANTES de comparar: así el límite se aplica
+  // aunque cada intento fuera con una contraseña distinta.
+  if (!registrarIntento_(CLAVES.rateAdmin, A.limiteIntentos, A.ventanaIntentosSegundos)) {
+    throw errorControlado_(CODIGOS.DEMASIADAS_SOLICITUDES,
+      'Demasiados intentos seguidos. Espera unos minutos antes de volver a probar.');
+  }
+
+  var guardado = PropertiesService.getScriptProperties().getProperty(CLAVES.claveAdmin);
+  var separador = guardado ? guardado.indexOf(':') : -1;
+
+  if (separador <= 0) {
+    throw errorControlado_(CODIGOS.NO_AUTORIZADO,
+      'El panel de administración todavía no tiene contraseña. ' +
+      'Ejecuta guardarClaveAdministrador() en Apps Script.');
+  }
+
+  var sal     = guardado.substring(0, separador);
+  var esperado = guardado.substring(separador + 1);
+  var recibida = String(clave === null || clave === undefined ? '' : clave);
+
+  if (!recibida || !comparacionSegura_(hashHex_(sal + recibida), esperado)) {
+    throw errorControlado_(CODIGOS.NO_AUTORIZADO,
+      'La contraseña de administración no es correcta.');
+  }
+}
+
+/** Encabezados de la hoja de archivo: los de la hoja principal más el contexto. */
+function columnasArchivo_() {
+  return ['Fecha de archivado', 'Grupo liberado'].concat(CONFIG.columnas);
+}
+
+/**
+ * Devuelve la hoja de archivo, creándola con su cabecera la primera vez.
+ *
+ * @returns {Sheet} Hoja de archivo.
+ */
+function obtenerHojaArchivo_() {
+  var libro = obtenerLibro_();
+  var hoja  = libro.getSheetByName(CONFIG.hojaArchivo);
+
+  if (hoja) return hoja;
+
+  var cabecera = columnasArchivo_();
+  hoja = libro.insertSheet(CONFIG.hojaArchivo);
+
+  var faltan = cabecera.length - hoja.getMaxColumns();
+  if (faltan > 0) hoja.insertColumnsAfter(hoja.getMaxColumns(), faltan);
+
+  hoja.getRange(1, 1, 1, cabecera.length)
+    .setValues([cabecera])
+    .setBackground(CONFIG.colores.fondoDias)
+    .setFontColor(CONFIG.colores.textoDias)
+    .setFontWeight('bold');
+
+  hoja.setColumnWidth(1, 160);
+  hoja.setColumnWidth(2, 320);
+  for (var c = 0; c < CONFIG.anchosColumnas.length; c++) {
+    hoja.setColumnWidth(c + 3, CONFIG.anchosColumnas[c]);
+  }
+
+  return hoja;
+}
+
+/**
+ * Mueve los estudiantes de un grupo a la hoja de archivo y vacía su bloque.
+ *
+ * El orden importa: primero se escribe la copia y se fuerza su guardado, y
+ * solo después se vacía el bloque original. Si la copia fallara, la excepción
+ * corta la operación con la hoja principal todavía intacta; el peor caso
+ * posible es un archivo duplicado, nunca una pérdida de datos.
+ *
+ * Se ejecuta dentro del mismo bloqueo que usa el registro, de modo que no
+ * puede coincidir con una inscripción a medio escribir.
+ *
+ * @param {string} diaNormalizado - Día en mayúsculas (ej. "LUNES Y JUEVES").
+ * @param {string} grupoNombre - Nombre del grupo.
+ * @returns {Object} { movidos, inscritos, disponibles, limite }.
+ */
+function liberarGrupo_(diaNormalizado, grupoNombre) {
+  // Fuera del bloqueo, igual que en registrarEstudiante_: obtener las
+  // referencias a las hojas no lee ni escribe datos.
+  var sheet   = obtenerHoja_();
+  var archivo = obtenerHojaArchivo_();
+
+  return conBloqueo_(function () {
+    var snapshot = leerSnapshot_(sheet, false);
+    var seccion  = snapshot.secciones[claveGrupo_(diaNormalizado, grupoNombre)];
+
+    if (!seccion) {
+      registrarError_('liberarGrupo', new Error(
+        'No existe la sección ' + diaNormalizado + ' / ' + grupoNombre +
+        ' en la hoja "' + CONFIG.hojaNombre + '".'
+      ));
+      throw errorControlado_(CODIGOS.ERROR,
+        'Ese grupo no existe en la hoja. Comprueba que se ejecutó setup().');
+    }
+
+    var libre = {
+      movidos:     0,
+      inscritos:   0,
+      disponibles: CONFIG.limiteCupos,
+      limite:      CONFIG.limiteCupos
+    };
+
+    var filas = seccion.filaProximoEncabezado - seccion.filaInicio;
+    if (filas <= 0) return libre;
+
+    var rango  = sheet.getRange(seccion.filaInicio, 1, filas, CONFIG.columnas.length);
+    var bloque = rango.getValues();
+
+    var etiqueta = diaNormalizado + ' — ' + grupoNombre;
+    var fecha    = fechaHoraLocal_();
+    var aArchivar = [];
+
+    for (var i = 0; i < bloque.length; i++) {
+      var primera = String(bloque[i][0] === null || bloque[i][0] === undefined ? '' : bloque[i][0]).trim();
+      if (!primera) continue;   // Fila de buffer, no un estudiante
+      aArchivar.push([fecha, etiqueta].concat(bloque[i]));
+    }
+
+    if (!aArchivar.length) return libre;
+
+    // 1. Copia al archivo, confirmada antes de tocar nada más.
+    archivo
+      .getRange(archivo.getLastRow() + 1, 1, aArchivar.length, aArchivar[0].length)
+      .setValues(aArchivar);
+    SpreadsheetApp.flush();
+
+    // 2. Ahora sí: el bloque queda vacío y el grupo vuelve a 0 de 15.
+    rango.clearContent();
+
+    invalidarDisponibilidad_();
+
+    libre.movidos = aArchivar.length;
+    return libre;
+  });
+}
+
+/**
+ * Atiende la acción "liberar-grupo" que envía el panel del formulario.
+ *
+ * @param {Object} data - Cuerpo de la solicitud: { action, clave, dias, grupo, horario }.
+ * @returns {Object} Respuesta con el número de filas archivadas.
+ */
+function procesarLiberacionDeGrupo_(data) {
+  if (!data || typeof data !== 'object') {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'No se recibieron datos válidos en la solicitud.');
+  }
+
+  verificarClaveAdmin_(data.clave);
+
+  // ── Grupo de días (misma lista blanca que usa una inscripción) ──
+  var dias = textoDelCampo_(data.dias);
+  if (dias === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El grupo de días recibido no es válido.');
+  }
+  var diaNormalizado = dias.replace(/\s+/g, ' ').toUpperCase();
+  if (CONFIG.dias.indexOf(diaNormalizado) === -1) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El grupo de días seleccionado no es válido.');
+  }
+
+  // ── Horario / grupo (misma lista blanca) ──
+  var horario = textoDelCampo_(data.horario);
+  var grupo   = textoDelCampo_(data.grupo);
+  if (horario === null || grupo === null) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El horario recibido no es válido.');
+  }
+  var grupoNombre = resolverGrupo_(grupo.replace(/\s+/g, ' '), horario.replace(/\s+/g, ' '));
+  if (!grupoNombre) {
+    throw errorControlado_(CODIGOS.DATOS_INVALIDOS, 'El horario seleccionado no es válido.');
+  }
+
+  var resultado = liberarGrupo_(diaNormalizado, grupoNombre);
+
+  Logger.log('Grupo liberado: ' + diaNormalizado + ' / ' + grupoNombre +
+             ' → ' + resultado.movidos + ' fila(s) archivadas.');
+
+  return {
+    status:      'success',
+    grupo:       diaNormalizado + ' — ' + grupoNombre,
+    archivo:     CONFIG.hojaArchivo,
+    movidos:     resultado.movidos,
+    inscritos:   resultado.inscritos,
+    disponibles: resultado.disponibles,
+    limite:      resultado.limite,
+    message:     resultado.movidos > 0
+      ? 'Se movieron ' + resultado.movidos + ' inscripción(es) a la hoja "' +
+        CONFIG.hojaArchivo + '". El grupo vuelve a estar libre.'
+      : 'Ese grupo ya estaba vacío: no había nada que mover.'
+  };
 }
 
 

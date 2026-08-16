@@ -104,6 +104,16 @@ class FakeSheet {
   escribir(r, c, v) { this.datos.set(this.clave(r, c), v); }
 
   getMaxRows() { contar('meta'); return this.filas; }
+  getLastRow() {
+    contar('meta');
+    let ultima = 0;
+    for (const [k, v] of this.datos) {
+      if (v === '' || v === null || v === undefined) continue;
+      const r = Number(k.split(',')[0]);
+      if (r > ultima) ultima = r;
+    }
+    return ultima;
+  }
   getMaxColumns() { contar('meta'); return this.cols; }
   getRange(row, col, numRows = 1, numCols = 1) {
     return new FakeRange(this, row, col, numRows, numCols);

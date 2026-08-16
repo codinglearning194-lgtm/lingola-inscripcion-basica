@@ -82,6 +82,48 @@ Sube `contrato-basico-nuevo.html` y `datos-personales-basico-nuevo.html`. Son lo
 
 Los demás (`seleccionDenivel.html`, `informacion-*.html`, `index.html`) no cambiaron.
 
+### 8. Contraseña del panel de administración
+
+El formulario incluye un enlace **Administración** al pie que permite liberar un
+grupo lleno. Hasta que no configures la contraseña, el panel rechaza cualquier
+intento, así que este paso es obligatorio para poder usarlo.
+
+En el editor de Apps Script, abre `guardarClaveAdministrador` y escribe tu
+contraseña (mínimo 8 caracteres) en la línea `var CLAVE_NUEVA = '';`:
+
+```javascript
+var CLAVE_NUEVA = 'la-que-tú-elijas';
+```
+
+Guarda, pulsa **▶ Ejecutar**, y después **vuelve a dejar la línea vacía y guarda
+otra vez**. No hace falta volver a publicar: la contraseña se guarda en las
+propiedades del script, no en el código.
+
+Del texto solo se almacena su huella SHA-256 con sal, así que no puede
+recuperarse. Si la olvidas, repite este paso con una nueva.
+
+> La contraseña nunca aparece en el HTML ni viaja en una URL: el formulario la
+> envía por POST y la comprobación ocurre entera en el servidor.
+
+---
+
+## Cómo liberar un grupo
+
+Cuando un grupo llega a sus 15 cupos y quieres reabrirlo para el siguiente ciclo:
+
+1. Abre el formulario y pulsa **Administración** (al pie de la página).
+2. Elige el grupo. El desplegable muestra cuántos cupos tiene ocupados.
+3. Escribe la contraseña y pulsa **Liberar grupo**.
+4. Lee el aviso y confirma con el segundo botón.
+
+Las filas de ese grupo se copian a la hoja **«Archivo de inscripciones»** —que se
+crea sola la primera vez— con la fecha y el grupo del que salieron, y después el
+bloque queda vacío. Nada se borra: si te equivocas de grupo, los datos siguen ahí
+y puedes volver a pegarlos.
+
+El correo de alguien archivado deja de contar como duplicado, de modo que esa
+persona puede volver a inscribirse en el ciclo siguiente.
+
 ---
 
 ## Comprobación final
@@ -108,12 +150,14 @@ Haz una inscripción real desde el formulario:
 | `testCorreos()` | Envía una muestra de los correos a `ADMIN_EMAIL` |
 | `limpiarMarcasDeEnvio()` | Borra marcas de idempotencia antiguas |
 | `ampliarBloquesParaCupos()` | Amplía los bloques sin borrar datos |
+| `guardarClaveAdministrador()` | Fija la contraseña del panel de administración |
 
 ## Pruebas locales
 
 ```bash
 node pruebas/pruebas-backend.js        # 63 comprobaciones
 node pruebas/pruebas-integracion.js    # flujo frontend → backend
+node pruebas/pruebas-admin.js          # liberar un grupo y archivarlo
 node pruebas/medir-seccion-critica.js  # coste del bloqueo
 ```
 

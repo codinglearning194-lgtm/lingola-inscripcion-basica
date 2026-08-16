@@ -496,6 +496,179 @@
             transform: none;
         }
 
+        /* --- PANEL DE ADMINISTRACIÓN --- */
+        /* Acceso discreto: siempre disponible para el administrador, pero sin
+           competir visualmente con los pasos de la inscripción. */
+        .admin-launcher {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .admin-launcher button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            opacity: 0.65;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.25s ease;
+        }
+
+        .admin-launcher button:hover,
+        .admin-launcher button:focus-visible {
+            opacity: 1;
+            color: var(--primary-color);
+            background-color: rgba(19, 42, 74, 0.05);
+        }
+
+        .admin-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(19, 42, 74, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+            z-index: 100;
+        }
+
+        .admin-overlay.visible {
+            display: flex;
+        }
+
+        .admin-panel {
+            background: var(--white-color);
+            border-radius: 20px;
+            box-shadow: var(--shadow-soft);
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .admin-panel h2 {
+            font-size: 1.25rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .admin-panel > p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin: 0.5rem 0 1.5rem;
+        }
+
+        .admin-field {
+            margin-bottom: 1.25rem;
+        }
+
+        .admin-field label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .admin-field select,
+        .admin-field input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            background-color: var(--white-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .admin-field select:focus,
+        .admin-field input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(19, 42, 74, 0.06);
+        }
+
+        .admin-feedback {
+            display: none;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            padding: 0.9rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.25rem;
+        }
+
+        .admin-feedback.visible {
+            display: block;
+        }
+
+        .admin-feedback.is-error {
+            background-color: rgba(239, 68, 68, 0.08);
+            color: #B91C1C;
+        }
+
+        .admin-feedback.is-success {
+            background-color: rgba(21, 128, 61, 0.08);
+            color: var(--success-color);
+        }
+
+        .admin-feedback.is-warning {
+            background-color: rgba(234, 179, 8, 0.12);
+            color: #92400E;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .admin-actions button {
+            padding: 0.75rem 1.35rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .btn-admin-cancel {
+            background: none;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-admin-cancel:hover {
+            background-color: rgba(19, 42, 74, 0.04);
+            color: var(--text-dark);
+        }
+
+        .btn-admin-confirm {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            border: none;
+        }
+
+        .btn-admin-confirm:hover:not(:disabled) {
+            background-color: #1a3a66;
+        }
+
+        .btn-admin-confirm:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         /* --- ANIMACIÓN DE ENTRADA SUAVE --- */
         @keyframes fadeIn {
             from {
@@ -742,7 +915,52 @@
                 </button>
             </section>
         </form>
+
+        <!-- Acceso al panel de administración.
+             Va fuera del <form> a propósito: no forma parte de la inscripción
+             del estudiante y no debe poder enviarla. -->
+        <div class="admin-launcher">
+            <button type="button" id="admin-open">
+                <i class="fa-solid fa-lock"></i> Administración
+            </button>
+        </div>
     </main>
+
+    <!-- Panel para liberar un grupo lleno.
+         La contraseña se comprueba en el servidor: aquí no hay ninguna clave
+         escrita ni ninguna comprobación que sirva de nada saltarse. -->
+    <div class="admin-overlay" id="admin-overlay" role="dialog" aria-modal="true"
+         aria-labelledby="admin-title" hidden>
+        <div class="admin-panel">
+            <h2 id="admin-title"><i class="fa-solid fa-users-gear"></i> Liberar un grupo</h2>
+            <p>
+                Mueve las inscripciones del grupo elegido a la hoja
+                <strong>«Archivo de inscripciones»</strong> y deja sus 15 cupos otra vez
+                libres en el formulario. Los datos de los estudiantes no se borran:
+                quedan guardados en esa hoja con la fecha en que se liberó el grupo.
+            </p>
+
+            <div class="admin-feedback" id="admin-feedback" role="status"></div>
+
+            <div class="admin-field">
+                <label for="admin-group">Grupo</label>
+                <select id="admin-group"></select>
+            </div>
+
+            <div class="admin-field">
+                <label for="admin-password">Contraseña de administración</label>
+                <input type="password" id="admin-password" autocomplete="current-password"
+                       placeholder="La que guardaste en Apps Script">
+            </div>
+
+            <div class="admin-actions">
+                <button type="button" class="btn-admin-cancel" id="admin-cancel">Cancelar</button>
+                <button type="button" class="btn-admin-confirm" id="admin-submit">
+                    Liberar grupo
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Configuración centralizada del curso -->
     <script src="lingola-config.js"></script>
@@ -770,6 +988,15 @@
                 'mañana-11:00-12:30': 'Segundo grupo de la mañana',
                 'tarde-14:00-15:30':  'Primer grupo de la tarde',
                 'tarde-16:00-17:30':  'Segundo grupo de la tarde'
+            };
+
+            // Rango horario oficial de cada grupo. El guion es el largo (–),
+            // igual que en el backend: el servidor compara el texto exacto.
+            const RANGOS = {
+                'mañana-9:00-10:30':  '9:00 AM – 10:30 AM',
+                'mañana-11:00-12:30': '11:00 AM – 12:30 PM',
+                'tarde-14:00-15:30':  '2:00 PM – 3:30 PM',
+                'tarde-16:00-17:30':  '4:00 PM – 5:30 PM'
             };
 
             const form = document.getElementById('registration-form');
@@ -1017,7 +1244,12 @@
                 }
             }
 
-            /** Carga inicial de la disponibilidad. */
+            /**
+             * Carga la disponibilidad y la pinta en las tarjetas.
+             * Devuelve una promesa que siempre se resuelve: quien la encadene
+             * (el panel de administración) se ejecuta tanto si la consulta
+             * salió bien como si no.
+             */
             function loadAvailability() {
                 timeCards.forEach(card => {
                     const statusEl = card.querySelector('[data-role="slot-status"]');
@@ -1026,7 +1258,7 @@
                     }
                 });
 
-                fetchAvailability()
+                return fetchAvailability()
                     .then(respuesta => {
                         if (!respuesta || respuesta.status !== 'success' || !Array.isArray(respuesta.grupos)) {
                             throw new Error('Respuesta de disponibilidad no válida.');
@@ -1042,6 +1274,217 @@
                         showCapacityNotice('');
                     });
             }
+
+            // ── PANEL DE ADMINISTRACIÓN: liberar un grupo ───────────────────
+            // Aquí no vive ninguna contraseña ni ninguna comprobación de
+            // acceso: la clave se escribe en este formulario, viaja por POST
+            // (nunca en la URL) y solo el servidor sabe si es correcta. Este
+            // panel se limita a pedirla, confirmar la acción y mostrar el
+            // resultado.
+
+            const adminOverlay = document.getElementById('admin-overlay');
+            const adminOpenBtn = document.getElementById('admin-open');
+            const adminCancelBtn = document.getElementById('admin-cancel');
+            const adminSubmitBtn = document.getElementById('admin-submit');
+            const adminSelect = document.getElementById('admin-group');
+            const adminPassword = document.getElementById('admin-password');
+            const adminFeedback = document.getElementById('admin-feedback');
+
+            // Las 8 combinaciones de días + horario, en el mismo orden que las
+            // tarjetas. Los textos salen de los mismos mapas que usa una
+            // inscripción, así que coinciden con la lista blanca del servidor.
+            const ADMIN_GRUPOS = [];
+            Object.keys(DAYS_LABELS).forEach(daysKey => {
+                Object.keys(GRUPOS).forEach(timeKey => {
+                    ADMIN_GRUPOS.push({
+                        days:  daysKey,
+                        time:  timeKey,
+                        dias:  DAYS_LABELS[daysKey],
+                        grupo: GRUPOS[timeKey],
+                        rango: RANGOS[timeKey]
+                    });
+                });
+            });
+
+            // 'idle' pide los datos; 'confirm' espera el segundo clic. Un
+            // grupo no se vacía nunca con una sola pulsación.
+            let adminPaso = 'idle';
+            let adminEnviando = false;
+
+            function showAdminFeedback(message, tipo) {
+                adminFeedback.className = 'admin-feedback';
+                if (!message) {
+                    adminFeedback.textContent = '';
+                    return;
+                }
+                adminFeedback.textContent = message;
+                adminFeedback.classList.add('visible', 'is-' + tipo);
+            }
+
+            /** Vuelve al estado inicial del panel, sin cerrarlo. */
+            function resetAdminPaso() {
+                adminPaso = 'idle';
+                adminSubmitBtn.textContent = 'Liberar grupo';
+                adminSubmitBtn.disabled = adminEnviando;
+            }
+
+            /** Rellena el desplegable con la ocupación conocida de cada grupo. */
+            function renderAdminGrupos() {
+                const seleccionado = adminSelect.value;
+                adminSelect.innerHTML = '';
+
+                ADMIN_GRUPOS.forEach((g, indice) => {
+                    const info = getCardAvailability(g.days, g.time);
+                    const ocupacion = info
+                        ? ' — ' + info.inscritos + ' de ' + info.limite + ' ocupados'
+                        : '';
+
+                    const option = document.createElement('option');
+                    option.value = String(indice);
+                    option.textContent = g.dias + ' · ' + g.rango + ocupacion;
+                    adminSelect.appendChild(option);
+                });
+
+                if (seleccionado) adminSelect.value = seleccionado;
+            }
+
+            function openAdminPanel() {
+                showAdminFeedback('');
+                adminPassword.value = '';
+                renderAdminGrupos();
+                resetAdminPaso();
+
+                adminOverlay.hidden = false;
+                adminOverlay.classList.add('visible');
+                adminSelect.focus();
+            }
+
+            function closeAdminPanel() {
+                if (adminEnviando) return;   // No cerrar a mitad de una operación
+                adminOverlay.classList.remove('visible');
+                adminOverlay.hidden = true;
+                adminPassword.value = '';    // La clave no se queda en memoria
+                resetAdminPaso();
+            }
+
+            function setAdminLoading(cargando) {
+                adminEnviando = cargando;
+                adminSubmitBtn.disabled = cargando;
+                adminCancelBtn.disabled = cargando;
+                if (cargando) {
+                    adminSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Moviendo…';
+                }
+            }
+
+            /** Envía la orden de liberar. Solo por POST: la clave nunca va en la URL. */
+            function enviarLiberacion(grupo, clave) {
+                return fetch(PAGE_CONFIG.GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    body: JSON.stringify({
+                        action:  'liberar-grupo',
+                        clave:   clave,
+                        dias:    grupo.dias,
+                        grupo:   grupo.grupo,
+                        horario: grupo.rango
+                    })
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error('El servidor respondió con el código ' + response.status + '.');
+                    }
+                    return response.json();
+                });
+            }
+
+            function handleAdminSubmit() {
+                if (adminEnviando) return;
+
+                const grupo = ADMIN_GRUPOS[Number(adminSelect.value)];
+                const clave = adminPassword.value;
+
+                if (!grupo) {
+                    showAdminFeedback('Selecciona el grupo que quieres liberar.', 'error');
+                    return;
+                }
+                if (!clave) {
+                    showAdminFeedback('Escribe la contraseña de administración.', 'error');
+                    adminPassword.focus();
+                    return;
+                }
+
+                // Primer clic: se explica exactamente qué va a pasar.
+                if (adminPaso === 'idle') {
+                    const info = getCardAvailability(grupo.days, grupo.time);
+                    const cuantos = info ? info.inscritos : null;
+
+                    showAdminFeedback(
+                        (cuantos === null
+                            ? 'Se moverán todas las inscripciones de '
+                            : 'Se moverán ' + cuantos + ' inscripción(es) de ') +
+                        grupo.dias + ' · ' + grupo.rango +
+                        ' a la hoja «Archivo de inscripciones». El grupo quedará vacío ' +
+                        'y volverá a aparecer con sus ' + PAGE_CONFIG.CUPOS_LIMITE +
+                        ' cupos libres.',
+                        'warning'
+                    );
+
+                    adminPaso = 'confirm';
+                    adminSubmitBtn.textContent = cuantos === null
+                        ? 'Sí, liberar el grupo'
+                        : 'Sí, mover ' + cuantos + ' y liberar';
+                    return;
+                }
+
+                // Segundo clic: se ejecuta.
+                setAdminLoading(true);
+
+                enviarLiberacion(grupo, clave)
+                    .then(respuesta => {
+                        if (!respuesta || respuesta.status !== 'success') {
+                            const mensaje = (respuesta && respuesta.message)
+                                ? respuesta.message
+                                : 'No se pudo liberar el grupo.';
+                            throw new Error(mensaje);
+                        }
+
+                        showAdminFeedback(respuesta.message, 'success');
+                        adminPassword.value = '';
+
+                        // Las tarjetas y el desplegable deben reflejar el
+                        // cambio en cuanto el servidor confirme los cupos.
+                        return loadAvailability().then(renderAdminGrupos);
+                    })
+                    .catch(error => {
+                        showAdminFeedback(error.message, 'error');
+                    })
+                    .then(() => {
+                        setAdminLoading(false);
+                        resetAdminPaso();
+                    });
+            }
+
+            adminOpenBtn.addEventListener('click', openAdminPanel);
+            adminCancelBtn.addEventListener('click', closeAdminPanel);
+            adminSubmitBtn.addEventListener('click', handleAdminSubmit);
+
+            // Cambiar de grupo invalida una confirmación pendiente: el aviso
+            // que se acababa de leer ya no describe lo que se va a hacer.
+            adminSelect.addEventListener('change', () => {
+                if (adminPaso === 'confirm') {
+                    showAdminFeedback('');
+                    resetAdminPaso();
+                }
+            });
+
+            adminOverlay.addEventListener('click', (e) => {
+                if (e.target === adminOverlay) closeAdminPanel();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && adminOverlay.classList.contains('visible')) {
+                    closeAdminPanel();
+                }
+            });
 
             function saveRegistrationDraft() {
                 const draft = {
